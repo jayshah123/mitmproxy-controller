@@ -2,7 +2,7 @@
 
 ## Project Summary
 
-macOS status menu (menu bar) app for controlling mitmproxy and system proxy settings. Built with Go + systray.
+Cross-platform system tray app for controlling mitmproxy and system proxy settings. Built with Go + systray. Works on macOS (status menu) and Windows (system tray).
 
 ## Tech Stack
 
@@ -41,10 +41,24 @@ go mod tidy
 
 - `main.go` - Shared UI logic:
   - `onReady()` - Sets up systray menu items
-  - `startMitmproxy()` / `stopMitmproxy()` - Process control
-  - `enableProxy()` / `disableProxy()` - System proxy via networksetup
-  - `getStatus()` - Checks mitmproxy process and proxy state
+  - `startMitmproxy()` / `stopMitmproxy()` - Process control wrappers
+  - `enableProxy()` / `disableProxy()` - System proxy wrappers
+  - `updateStatus()` - Updates tray icon and status text
+
+- `mitm.go` - Shared process control:
+  - `startMitm()` / `stopMitm()` - Start/stop mitmdump process
+  - `isMitmproxyRunning()` - Check if mitmproxy is running
+  - Constants: `proxyHost` (127.0.0.1), `proxyPort` (8899)
+
+- `proxy_darwin.go` - macOS proxy:
+  - `enableSystemProxy()` / `disableSystemProxy()` - via networksetup
+  - `isProxyEnabled()` - Check proxy state
   - `getActiveNetworkService()` - Detects active network interface
+
+- `proxy_windows.go` - Windows proxy:
+  - `enableSystemProxy()` / `disableSystemProxy()` - via registry
+  - `isProxyEnabled()` - Check registry ProxyEnable value
+  - `notifyProxyChange()` - Calls WinINet API to refresh
 
 ## Status Icons
 
@@ -63,6 +77,6 @@ go mod tidy
 
 ## Conventions
 
-- Single-file app - all logic in main.go
+- Multi-file app with platform-specific code via Go build tags
 - System commands use `exec.Command` with proper error handling
 - App runs as a background process in the macOS status menu

@@ -1,11 +1,11 @@
 # mitmproxy-controller
 
-A lightweight macOS **status menu** (menu bar) app for controlling [mitmproxy](https://mitmproxy.org/) and system proxy settings.
+A cross-platform **system tray** app for controlling [mitmproxy](https://mitmproxy.org/) and system proxy settings. Works on macOS (status menu) and Windows (system tray).
 
 ## Features
 
 - **Start/Stop mitmproxy** - Launch or kill the mitmdump process (headless mode)
-- **Enable/Disable System Proxy** - Configure macOS network settings to route traffic through mitmproxy (127.0.0.1:8899)
+- **Enable/Disable System Proxy** - Configure system proxy to route traffic through mitmproxy (127.0.0.1:8899)
 - **Status Indicator** - Menu bar icon shows current state:
   - 🟢 mitmproxy running + proxy enabled
   - 🟡 mitmproxy running + proxy disabled
@@ -21,8 +21,11 @@ A lightweight macOS **status menu** (menu bar) app for controlling [mitmproxy](h
 ## Installation
 
 ```bash
-# Install mitmproxy (if not already installed)
+# macOS
 brew install mitmproxy
+
+# Windows (using pip)
+pip install mitmproxy
 ```
 
 ## Build
@@ -34,10 +37,14 @@ go build -o mitmproxy-controller
 ## Run
 
 ```bash
+# macOS
 ./mitmproxy-controller
+
+# Windows
+mitmproxy-controller.exe
 ```
 
-The app runs in the macOS status menu (top-right corner of the screen).
+The app runs in the system tray (macOS: top-right, Windows: bottom-right).
 
 ## Folder Layout
 
