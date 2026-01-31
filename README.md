@@ -24,8 +24,8 @@ A cross-platform **system tray** app for controlling [mitmproxy](https://mitmpro
 # macOS
 brew install mitmproxy
 
-# Windows (using pip)
-pip install mitmproxy
+# Windows (using winget)
+winget install -e --id mitmproxy.mitmproxy
 ```
 
 ## Build
