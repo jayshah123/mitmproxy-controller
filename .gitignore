@@ -1,2 +1,4 @@
 mitmproxy-controller
 build/
+
+*.exe
