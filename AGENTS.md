@@ -57,7 +57,8 @@ go mod tidy
   - Constants: `proxyHost` (127.0.0.1), `proxyPort` (8899), `webUIPort` (8898)
 
 - `cert_darwin.go` / `cert_windows.go` - CA Certificate:
-  - `isCertInstalled()` / `isCertTrusted()` - Check certificate status
+  - `isCertInstalled()` - Check if certificate is installed
+  - `isCertTrusted()` - Check if certificate is trusted by system
   - `installCACertificate()` - Install and trust the CA cert
   - `getMitmproxyCertPath()` - Path to mitmproxy CA cert
 

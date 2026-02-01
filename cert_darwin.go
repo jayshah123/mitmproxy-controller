@@ -24,14 +24,12 @@ func isCertInstalled() bool {
 }
 
 func isCertTrusted() bool {
-	// Export the cert and verify it
 	cmd := exec.Command("security", "find-certificate", "-c", "mitmproxy", "-p", "/Library/Keychains/System.keychain")
 	certPem, err := cmd.Output()
 	if err != nil || len(certPem) == 0 {
 		return false
 	}
 
-	// Write to temp file for verification
 	tmpFile, err := os.CreateTemp("", "mitmproxy-cert-*.pem")
 	if err != nil {
 		return false
@@ -40,7 +38,6 @@ func isCertTrusted() bool {
 	tmpFile.Write(certPem)
 	tmpFile.Close()
 
-	// Verify the cert - if trusted, this returns 0
 	verifyCmd := exec.Command("security", "verify-cert", "-c", tmpFile.Name())
 	return verifyCmd.Run() == nil
 }

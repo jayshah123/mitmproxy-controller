@@ -99,8 +99,8 @@ For HTTPS interception, mitmproxy's CA certificate must be trusted by your syste
 5. **Restart your browser** after installation
 
 The menu shows certificate status:
-- "Install CA Certificate" - not installed
-- "⚠️ Trust CA Certificate" - installed but not trusted (macOS only)
+- "Install CA Certificate" - not installed (click to install)
+- "CA Certificate ⚠️ Not Trusted" - installed but not trusted by system
 - "CA Certificate ✓ Trusted" - installed and trusted
 
 ## Notes

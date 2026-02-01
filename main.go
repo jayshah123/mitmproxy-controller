@@ -172,8 +172,8 @@ func updateStatus() {
 		mInstallCert.SetTitle("CA Certificate ✓ Trusted")
 		mInstallCert.Disable()
 	} else if isCertInstalled() {
-		mInstallCert.SetTitle("⚠️ Trust CA Certificate")
-		mInstallCert.Enable()
+		mInstallCert.SetTitle("CA Certificate ⚠️ Not Trusted")
+		mInstallCert.Disable()
 	} else {
 		mInstallCert.SetTitle("Install CA Certificate")
 		mInstallCert.Enable()
