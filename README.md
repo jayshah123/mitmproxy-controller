@@ -18,6 +18,14 @@ A cross-platform **system tray** app for controlling [mitmproxy](https://mitmpro
   - 🟠 mitmproxy stopped + proxy enabled
   - ⚫ both off
 
+## UI
+
+### macOS
+
+![macOS Menu Bar UI](assets/macos-ui.png)
+
+*Windows UI coming soon.*
+
 ## Prerequisites
 
 - **macOS** or **Windows**
