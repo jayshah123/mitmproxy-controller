@@ -28,8 +28,7 @@ Builds run on **native runners** (not cross-compiled) because `getlantern/systra
 
 | Runner | OS | Architecture | Artifact Name |
 |--------|-----|--------------|---------------|
-| `macos-13` | macOS | amd64 (Intel) | `mitmproxy-controller_darwin_amd64` |
-| `macos-14` | macOS | arm64 (Apple Silicon) | `mitmproxy-controller_darwin_arm64` |
+| `macos-latest` | macOS | arm64 (Apple Silicon) | `mitmproxy-controller_darwin_arm64` |
 | `windows-latest` | Windows | amd64 | `mitmproxy-controller_windows_amd64` |
 
 ---
@@ -62,7 +61,6 @@ Available in GitHub Actions → Run → Artifacts section for 90 days.
 
 | Artifact | Contents |
 |----------|----------|
-| `mitmproxy-controller_darwin_amd64` | `mitmproxy-controller_darwin_amd64.tar.gz` |
 | `mitmproxy-controller_darwin_arm64` | `mitmproxy-controller_darwin_arm64.tar.gz` |
 | `mitmproxy-controller_windows_amd64` | `mitmproxy-controller_windows_amd64.zip` |
 
@@ -72,7 +70,6 @@ Attached to GitHub Releases page.
 
 | File | Platform | Extract Command |
 |------|----------|-----------------|
-| `mitmproxy-controller_darwin_amd64.tar.gz` | macOS Intel | `tar -xzf <file>` |
 | `mitmproxy-controller_darwin_arm64.tar.gz` | macOS Apple Silicon | `tar -xzf <file>` |
 | `mitmproxy-controller_windows_amd64.zip` | Windows x64 | Extract with Explorer or `7z x <file>` |
 

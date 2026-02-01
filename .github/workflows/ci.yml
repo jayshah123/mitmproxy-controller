@@ -17,11 +17,7 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - runs_on: macos-13
-            goos: darwin
-            goarch: amd64
-            artifact_name: mitmproxy-controller_darwin_amd64
-          - runs_on: macos-14
+          - runs_on: macos-latest
             goos: darwin
             goarch: arm64
             artifact_name: mitmproxy-controller_darwin_arm64
