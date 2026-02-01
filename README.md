@@ -6,7 +6,10 @@ A cross-platform **system tray** app for controlling [mitmproxy](https://mitmpro
 
 - **Start/Stop mitmproxy** - Launch or kill the mitmdump process (headless mode)
 - **Enable/Disable System Proxy** - Configure system proxy to route traffic through mitmproxy (127.0.0.1:8899)
-- **Status Indicator** - Menu bar icon shows current state:
+- **Smart Menu Items** - Actions are disabled when not applicable (e.g., can't start if already running)
+- **Auto-Refresh** - Status updates every 5 seconds via background polling
+- **Manual Refresh** - "Refresh Status" menu item for immediate update
+- **Status Indicator** - Tray icon shows current state:
   - 🟢 mitmproxy running + proxy enabled
   - 🟡 mitmproxy running + proxy disabled
   - 🟠 mitmproxy stopped + proxy enabled

@@ -74,6 +74,9 @@ go mod tidy
 - **Network detection**: Uses `route get default` to find active interface, then maps device (e.g., `en0`) to service name (e.g., `Wi-Fi`) via `networksetup -listallhardwareports`
 - **Proxy state**: Must explicitly call `-setwebproxystate on` after setting proxy host/port
 - **Process lifecycle**: Uses goroutine with `cmd.Wait()` to track when mitmdump exits and clear `mitmProcess`
+- **Thread safety**: Single goroutine handles both ticker and menu clicks to ensure thread-safe UI access
+- **Polling**: Status refreshes every 5 seconds to detect external changes
+- **Smart menu**: Actions disabled during operations and when not applicable (prevents double-clicks)
 
 ## Conventions
 
