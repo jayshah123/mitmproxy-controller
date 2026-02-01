@@ -60,7 +60,10 @@ go mod tidy
   - `isCertInstalled()` - Check if certificate is installed
   - `isCertTrusted()` - Check if certificate is trusted by system
   - `installCACertificate()` - Install and trust the CA cert
+  - `trustCACertificate()` - Trust an already-installed cert (macOS)
+  - `removeCACertificate()` - Remove cert from system trust store
   - `getMitmproxyCertPath()` - Path to mitmproxy CA cert
+  - `getCertThumbprint()` - Get SHA1 thumbprint (Windows only)
 
 - `open_darwin.go` / `open_windows.go` - Platform utilities:
   - `openURL()` - Open URL in default browser

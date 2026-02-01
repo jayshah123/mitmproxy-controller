@@ -17,6 +17,13 @@ var (
 	mViewFlows    *systray.MenuItem
 	mRevealLogs   *systray.MenuItem
 	mInstallCert  *systray.MenuItem
+	mRemoveCert   *systray.MenuItem
+)
+
+// Track cert state for click handler
+var (
+	certInstalled bool
+	certTrusted   bool
 )
 
 func main() {
@@ -44,7 +51,11 @@ func onReady() {
 
 	mViewFlows = systray.AddMenuItem("View Flows (Web UI)", "Open mitmweb interface in browser")
 	mRevealLogs = systray.AddMenuItem("Reveal Logs Folder", "Open logs folder in file manager")
+
+	systray.AddSeparator()
+
 	mInstallCert = systray.AddMenuItem("Install CA Certificate", "Install mitmproxy CA cert for HTTPS interception")
+	mRemoveCert = systray.AddMenuItem("Remove CA Certificate", "Remove mitmproxy CA cert from system")
 
 	systray.AddSeparator()
 
@@ -97,7 +108,15 @@ func onReady() {
 				revealInFileManager(getLogsDirectory())
 
 			case <-mInstallCert.ClickedCh:
-				mStatus.SetTitle(installCACertificate())
+				if certInstalled && !certTrusted {
+					mStatus.SetTitle(trustCACertificate())
+				} else {
+					mStatus.SetTitle(installCACertificate())
+				}
+				updateStatus()
+
+			case <-mRemoveCert.ClickedCh:
+				mStatus.SetTitle(removeCACertificate())
 				updateStatus()
 
 			case <-mRefresh.ClickedCh:
@@ -167,16 +186,22 @@ func updateStatus() {
 		mViewFlows.Disable()
 	}
 
-	// Update cert menu item based on installation and trust status
-	if isCertTrusted() {
+	// Update cert menu items based on installation and trust status
+	certInstalled = isCertInstalled()
+	certTrusted = isCertTrusted()
+
+	if certTrusted {
 		mInstallCert.SetTitle("CA Certificate ✓ Trusted")
 		mInstallCert.Disable()
-	} else if isCertInstalled() {
-		mInstallCert.SetTitle("CA Certificate ⚠️ Not Trusted")
-		mInstallCert.Disable()
+		mRemoveCert.Enable()
+	} else if certInstalled {
+		mInstallCert.SetTitle("Trust CA Certificate")
+		mInstallCert.Enable()
+		mRemoveCert.Enable()
 	} else {
 		mInstallCert.SetTitle("Install CA Certificate")
 		mInstallCert.Enable()
+		mRemoveCert.Disable()
 	}
 }
 

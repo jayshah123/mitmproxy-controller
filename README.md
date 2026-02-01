@@ -88,20 +88,32 @@ mitmproxy-controller/
 - Calls WinINet API to notify applications of proxy changes
 - App appears in the system tray (bottom-right)
 
-## CA Certificate Installation
+## CA Certificate Management
 
-For HTTPS interception, mitmproxy's CA certificate must be trusted by your system:
+For HTTPS interception, mitmproxy's CA certificate must be trusted by your system.
+
+### Install & Trust
 
 1. **Start mitmproxy** first (generates the CA cert in `~/.mitmproxy/`)
 2. Click **"Install CA Certificate"** from the menu
-3. **macOS**: Prompts for admin password, installs to System Keychain and sets trust
+3. **macOS**: Prompts for admin password, installs to System Keychain with SSL trust
 4. **Windows**: Uses `certutil` to add to user's Root certificate store
 5. **Restart your browser** after installation
 
-The menu shows certificate status:
-- "Install CA Certificate" - not installed (click to install)
-- "CA Certificate ⚠️ Not Trusted" - installed but not trusted by system
-- "CA Certificate ✓ Trusted" - installed and trusted
+### Remove Certificate
+
+Click **"Remove CA Certificate"** to uninstall from system trust store.
+- **macOS**: Removes trust settings and deletes from System Keychain
+- **Windows**: Deletes from Root store using SHA1 thumbprint
+
+### Menu States
+
+| Menu Item | State | Action |
+|-----------|-------|--------|
+| "Install CA Certificate" | Not installed | Click to install & trust |
+| "Trust CA Certificate" | Installed, not trusted | Click to apply trust (macOS) |
+| "CA Certificate ✓ Trusted" | Fully trusted | Disabled (complete) |
+| "Remove CA Certificate" | Installed or trusted | Click to remove |
 
 ## Notes
 

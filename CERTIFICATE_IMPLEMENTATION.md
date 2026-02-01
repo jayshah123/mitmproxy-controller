@@ -38,21 +38,34 @@ security add-trusted-cert -d -r trustRoot -k /Library/Keychains/System.keychain 
 killall -HUP trustd 2>/dev/null || true
 ```
 
-**Difference:** We do a two-step process (import + trust) and clean up existing certs first. devcert does a single `add-trusted-cert` command with policy flags (`-p ssl -p basic`).
+**Our approach (updated):**
+```bash
+# Delete existing certs first
+while security delete-certificate -c mitmproxy /Library/Keychains/System.keychain 2>/dev/null; do :; done
+
+# Import certificate
+security import <cert-path> -k /Library/Keychains/System.keychain -t cert
+
+# Set trust settings with SSL policy (like devcert)
+security add-trusted-cert -d -r trustRoot -p ssl -p basic -k /Library/Keychains/System.keychain <cert-path>
+
+# Refresh trust daemon
+killall -HUP trustd 2>/dev/null || true
+```
 
 #### Trust Verification
 
-**Our approach (not in devcert):**
+**Our approach:**
 ```bash
 # Export cert from keychain
 security find-certificate -c mitmproxy -p /Library/Keychains/System.keychain > temp.pem
 
-# Verify trust
-security verify-cert -c temp.pem
+# Verify trust with SSL policy
+security verify-cert -c temp.pem -p ssl
 # Exit code 0 = trusted, non-zero = not trusted
 ```
 
-devcert doesn't have explicit trust verification - it relies on installation success.
+devcert doesn't have explicit trust verification - it relies on installation success. We go further by actually verifying the certificate is trusted for SSL.
 
 #### Certificate Locations
 
@@ -87,17 +100,24 @@ func isCertTrusted() bool {
 }
 ```
 
-#### Check if Installed
+#### Check if Installed (Thumbprint-based)
 
 ```cmd
+# Get thumbprint of cert file
+certutil -hashfile <cert-path> SHA1
+
+# List certs in Root store and match thumbprint
 certutil -store -user Root
-# Look for "mitmproxy" in output
+# Parse "Cert Hash(sha1): xx xx xx..." and compare
 ```
+
+Using thumbprint matching instead of name-based substring search ensures we identify the exact certificate.
 
 #### Certificate Removal
 
 ```cmd
-certutil -delstore -user root <cert-name>
+# Delete by thumbprint for precise targeting
+certutil -delstore -user root <thumbprint>
 ```
 
 #### Certificate Locations
@@ -167,13 +187,61 @@ Our implementation does NOT handle Firefox. Users must:
 | Feature | devcert | mitmproxy-controller |
 |---------|---------|---------------------|
 | macOS System Keychain | ✓ | ✓ |
-| macOS Trust Verification | ✗ (relies on install success) | ✓ (`security verify-cert`) |
+| macOS Trust Verification | ✗ (relies on install success) | ✓ (`security verify-cert -p ssl`) |
+| macOS Trust Action | ✓ | ✓ (`trustCACertificate()`) |
+| macOS Remove Action | ✓ | ✓ (`removeCACertificate()`) |
 | Windows Cert Store | ✓ | ✓ |
+| Windows Thumbprint-based | ✓ | ✓ (`getCertThumbprint()`) |
+| Windows Remove Action | ✓ | ✓ (`removeCACertificate()`) |
 | Firefox (NSS) | ✓ (with fallback GUI) | ✗ |
 | Chrome (uses system store) | ✓ | ✓ |
 | Safari (uses system store) | ✓ | ✓ |
 | Admin prompt (macOS) | ✓ (sudo) | ✓ (osascript) |
-| Policy flags (`-p ssl`) | ✓ | ✗ |
+| Policy flags (`-p ssl`) | ✓ | ✓ |
+
+---
+
+## Issues Discovered & Fixes Applied
+
+### Problem 1: UI Blocked Trust Action (macOS)
+
+**Issue:** The menu item was disabled when a certificate was installed but not trusted. Users had no way to apply trust settings.
+
+**Root cause:** `updateStatus()` set `mInstallCert.Disable()` for the "installed but not trusted" state.
+
+**Fix:** Enable the menu item and change its label to "Trust CA Certificate". The click handler now checks state and calls `trustCACertificate()` instead of `installCACertificate()`.
+
+### Problem 2: Keychain Mismatch (macOS)
+
+**Issue:** `isCertInstalled()` checked multiple keychains (System + user default), but `isCertTrusted()` only checked System keychain. A cert could be "installed" in login keychain but show as "not trusted" because it wasn't in System keychain.
+
+**Fix:** Changed `isCertInstalled()` to only check System keychain, matching `isCertTrusted()` behavior. Consistent keychain targeting across all functions.
+
+### Problem 3: Missing SSL Policy in Verification (macOS)
+
+**Issue:** `security verify-cert` was called without policy flags, which could give misleading trust results.
+
+**Fix:** Added `-p ssl` flag to match the policy we use during installation (`-p ssl -p basic`).
+
+### Problem 4: Name-based Certificate Matching (Windows)
+
+**Issue:** `isCertInstalled()` used substring search for "mitmproxy" in `certutil -store` output. This is unreliable and could match unrelated certificates.
+
+**Fix:** Implemented `getCertThumbprint()` to compute SHA1 hash of the cert file, then match against thumbprints in the store. Removal also uses thumbprint for precise targeting.
+
+### Problem 5: No Remove Functionality
+
+**Issue:** Users could install certificates but had no way to remove them via the app.
+
+**Fix:** Added `removeCACertificate()` for both platforms:
+- **macOS:** Removes trust settings with `security remove-trusted-cert -d`, then deletes cert objects with `security delete-certificate -c mitmproxy`
+- **Windows:** Deletes by thumbprint with `certutil -delstore -user Root <thumbprint>`
+
+### Problem 6: No Separate Trust Action
+
+**Issue:** Only `installCACertificate()` existed, which does a full reinstall. No way to just apply trust to an already-installed cert.
+
+**Fix:** Added `trustCACertificate()` for macOS that only runs `security add-trusted-cert` without reimporting. On Windows, trust is implicit with installation, so it just calls install.
 
 ---
 
@@ -192,10 +260,8 @@ mitmproxy generates and manages its own CA. We only install the public certifica
 
 ## Future Improvements
 
-1. **Add policy flags on macOS**: Use `-p ssl -p basic` for explicit trust scope
-2. **Firefox support**: Detect Firefox profiles and install via NSS certutil
-3. **Certificate removal**: Add menu option to uninstall/untrust certificate
-4. **Linux support**: If adding Linux platform support
+1. **Firefox support**: Detect Firefox profiles and install via NSS certutil
+2. **Linux support**: If adding Linux platform support
 
 ---
 
