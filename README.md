@@ -2,6 +2,14 @@
 
 A cross-platform **system tray** app for controlling [mitmproxy](https://mitmproxy.org/) and system proxy settings. Works on macOS (status menu) and Windows (system tray).
 
+## UI
+
+### macOS
+
+![macOS Menu Bar UI](assets/macos-ui.png)
+
+*Windows UI coming soon.*
+
 ## Features
 
 - **Start/Stop mitmproxy** - Launch or kill the mitmproxy process (uses mitmweb if available, falls back to mitmdump)
@@ -17,14 +25,6 @@ A cross-platform **system tray** app for controlling [mitmproxy](https://mitmpro
   - 🟡 mitmproxy running + proxy disabled
   - 🟠 mitmproxy stopped + proxy enabled
   - ⚫ both off
-
-## UI
-
-### macOS
-
-![macOS Menu Bar UI](assets/macos-ui.png)
-
-*Windows UI coming soon.*
 
 ## Prerequisites
 
