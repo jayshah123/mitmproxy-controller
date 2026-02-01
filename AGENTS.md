@@ -14,11 +14,15 @@ Cross-platform system tray app for controlling mitmproxy and system proxy settin
 
 ```
 ├── main.go             # Shared systray UI and menu handling
-├── mitm.go             # Shared mitmproxy process control
+├── mitm.go             # Shared mitmproxy process control + log management
 ├── mitm_darwin.go      # macOS process utilities (pgrep, signal)
 ├── mitm_windows.go     # Windows process utilities (tasklist, taskkill)
 ├── proxy_darwin.go     # macOS proxy config (networksetup)
 ├── proxy_windows.go    # Windows proxy config (registry + WinINet)
+├── cert_darwin.go      # macOS CA cert install (Keychain + security CLI)
+├── cert_windows.go     # Windows CA cert install (certutil)
+├── open_darwin.go      # macOS URL/file opening (open command)
+├── open_windows.go     # Windows URL/file opening (rundll32/explorer)
 ├── go.mod              # Go module definition
 ├── go.sum              # Go dependencies lock
 └── README.md
@@ -46,9 +50,20 @@ go mod tidy
   - `updateStatus()` - Updates tray icon and status text
 
 - `mitm.go` - Shared process control:
-  - `startMitm()` / `stopMitm()` - Start/stop mitmdump process
+  - `startMitm()` / `stopMitm()` - Start/stop mitmweb/mitmdump process
   - `isMitmproxyRunning()` - Check if mitmproxy is running
-  - Constants: `proxyHost` (127.0.0.1), `proxyPort` (8899)
+  - `isWebUIAvailable()` / `getWebUIURL()` - Web UI availability and URL
+  - `getLogsDirectory()` / `getCurrentLogPath()` - Log file management
+  - Constants: `proxyHost` (127.0.0.1), `proxyPort` (8899), `webUIPort` (8898)
+
+- `cert_darwin.go` / `cert_windows.go` - CA Certificate:
+  - `isCertInstalled()` / `isCertTrusted()` - Check certificate status
+  - `installCACertificate()` - Install and trust the CA cert
+  - `getMitmproxyCertPath()` - Path to mitmproxy CA cert
+
+- `open_darwin.go` / `open_windows.go` - Platform utilities:
+  - `openURL()` - Open URL in default browser
+  - `revealInFileManager()` - Open folder in Finder/Explorer
 
 - `proxy_darwin.go` - macOS proxy:
   - `enableSystemProxy()` / `disableSystemProxy()` - via networksetup

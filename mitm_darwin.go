@@ -19,7 +19,7 @@ func isProcessAlive(p *os.Process) bool {
 }
 
 func killExistingMitmproxy() bool {
-	out, err := exec.Command("pgrep", "-f", "mitmdump|mitmproxy").Output()
+	out, err := exec.Command("pgrep", "-f", "mitmdump|mitmproxy|mitmweb").Output()
 	if err != nil {
 		return false
 	}
@@ -37,6 +37,6 @@ func killExistingMitmproxy() bool {
 }
 
 func checkExistingMitmproxy() bool {
-	out, _ := exec.Command("pgrep", "-f", "mitmdump|mitmproxy").Output()
+	out, _ := exec.Command("pgrep", "-f", "mitmdump|mitmproxy|mitmweb").Output()
 	return len(strings.TrimSpace(string(out))) > 0
 }

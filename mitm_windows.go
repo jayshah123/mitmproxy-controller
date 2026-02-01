@@ -20,37 +20,32 @@ func isProcessAlive(p *os.Process) bool {
 }
 
 func killExistingMitmproxy() bool {
-	// Use tasklist to find and taskkill to kill mitmproxy processes
-	out, err := exec.Command("tasklist", "/FI", "IMAGENAME eq mitmdump.exe", "/FO", "CSV", "/NH").Output()
-	if err != nil {
-		return false
+	killed := false
+	processes := []string{"mitmdump.exe", "mitmproxy.exe", "mitmweb.exe"}
+
+	for _, proc := range processes {
+		out, err := exec.Command("tasklist", "/FI", "IMAGENAME eq "+proc, "/FO", "CSV", "/NH").Output()
+		if err != nil {
+			continue
+		}
+		if strings.Contains(string(out), proc) {
+			exec.Command("taskkill", "/F", "/IM", proc).Run()
+			killed = true
+		}
 	}
 
-	if strings.Contains(string(out), "mitmdump.exe") {
-		exec.Command("taskkill", "/F", "/IM", "mitmdump.exe").Run()
-		return true
-	}
-
-	// Also check for mitmproxy.exe
-	out, err = exec.Command("tasklist", "/FI", "IMAGENAME eq mitmproxy.exe", "/FO", "CSV", "/NH").Output()
-	if err != nil {
-		return false
-	}
-
-	if strings.Contains(string(out), "mitmproxy.exe") {
-		exec.Command("taskkill", "/F", "/IM", "mitmproxy.exe").Run()
-		return true
-	}
-
-	return false
+	return killed
 }
 
 func checkExistingMitmproxy() bool {
-	out, _ := exec.Command("tasklist", "/FI", "IMAGENAME eq mitmdump.exe", "/FO", "CSV", "/NH").Output()
-	if strings.Contains(string(out), "mitmdump.exe") {
-		return true
+	processes := []string{"mitmdump.exe", "mitmproxy.exe", "mitmweb.exe"}
+
+	for _, proc := range processes {
+		out, _ := exec.Command("tasklist", "/FI", "IMAGENAME eq "+proc, "/FO", "CSV", "/NH").Output()
+		if strings.Contains(string(out), proc) {
+			return true
+		}
 	}
 
-	out, _ = exec.Command("tasklist", "/FI", "IMAGENAME eq mitmproxy.exe", "/FO", "CSV", "/NH").Output()
-	return strings.Contains(string(out), "mitmproxy.exe")
+	return false
 }

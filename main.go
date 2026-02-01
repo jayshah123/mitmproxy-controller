@@ -14,6 +14,9 @@ var (
 	mStopMitm     *systray.MenuItem
 	mEnableProxy  *systray.MenuItem
 	mDisableProxy *systray.MenuItem
+	mViewFlows    *systray.MenuItem
+	mRevealLogs   *systray.MenuItem
+	mInstallCert  *systray.MenuItem
 )
 
 func main() {
@@ -36,6 +39,12 @@ func onReady() {
 
 	mEnableProxy = systray.AddMenuItem("Enable System Proxy", "Route traffic through mitmproxy")
 	mDisableProxy = systray.AddMenuItem("Disable System Proxy", "Disable system proxy")
+
+	systray.AddSeparator()
+
+	mViewFlows = systray.AddMenuItem("View Flows (Web UI)", "Open mitmweb interface in browser")
+	mRevealLogs = systray.AddMenuItem("Reveal Logs Folder", "Open logs folder in file manager")
+	mInstallCert = systray.AddMenuItem("Install CA Certificate", "Install mitmproxy CA cert for HTTPS interception")
 
 	systray.AddSeparator()
 
@@ -77,6 +86,18 @@ func onReady() {
 			case <-mDisableProxy.ClickedCh:
 				disableAllActions()
 				mStatus.SetTitle(disableProxy())
+				updateStatus()
+
+			case <-mViewFlows.ClickedCh:
+				if isWebUIAvailable() {
+					openURL(getWebUIURL())
+				}
+
+			case <-mRevealLogs.ClickedCh:
+				revealInFileManager(getLogsDirectory())
+
+			case <-mInstallCert.ClickedCh:
+				mStatus.SetTitle(installCACertificate())
 				updateStatus()
 
 			case <-mRefresh.ClickedCh:
@@ -137,6 +158,25 @@ func updateStatus() {
 	} else {
 		mEnableProxy.Enable()
 		mDisableProxy.Disable()
+	}
+
+	// View Flows only available when mitmweb is running
+	if isWebUIAvailable() {
+		mViewFlows.Enable()
+	} else {
+		mViewFlows.Disable()
+	}
+
+	// Update cert menu item based on installation and trust status
+	if isCertTrusted() {
+		mInstallCert.SetTitle("CA Certificate ✓ Trusted")
+		mInstallCert.Disable()
+	} else if isCertInstalled() {
+		mInstallCert.SetTitle("⚠️ Trust CA Certificate")
+		mInstallCert.Enable()
+	} else {
+		mInstallCert.SetTitle("Install CA Certificate")
+		mInstallCert.Enable()
 	}
 }
 
