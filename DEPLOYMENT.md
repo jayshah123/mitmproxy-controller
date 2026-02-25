@@ -112,7 +112,7 @@ The workflow will:
 
 - Check **Actions → publish-packages** run for the same release tag
 - Confirm Homebrew tap formula PR/commit was created
-- Confirm Winget PR was submitted to `microsoft/winget-pkgs`
+- Confirm Winget PR was submitted to `microsoft/winget-pkgs` (post-bootstrap releases)
 
 ---
 
@@ -124,11 +124,13 @@ Configure these in `Repository Settings → Secrets and variables → Actions`:
 |--------|--------------|-------|
 | `RELEASE_TAG_TOKEN` | Auto version tagging | Classic PAT (`repo`, `workflow`) used to push tags that trigger release workflows |
 | `HOMEBREW_TAP_TOKEN` | Homebrew publishing | PAT with access to `jayshah123/homebrew-tap` |
-| `WINGET_TOKEN` | Winget publishing | GitHub token used by winget releaser to submit PRs |
+| `WINGET_TOKEN` | Winget publishing | Classic PAT with `public_repo` used by winget releaser to submit PRs (authorize SSO/SAML if required) |
 
 If a secret is missing, that package job is skipped.
 If the tag contains a suffix like `-beta` or `-rc`, package jobs are skipped.
 Winget updates are also skipped until the initial package bootstrap exists in `microsoft/winget-pkgs`.
+See `WINGET_SETUP.md` for the one-time first submission process.
+For command-by-command execution from Windows, see `WINGET_FIRST_PUBLISH.md`.
 
 ---
 
@@ -210,7 +212,7 @@ go build -trimpath -ldflags "-s -w -H=windowsgui" -o mitmproxy-controller.exe .
 - [ ] Verify release page has both artifacts
 - [ ] Download and test each binary
 - [ ] Confirm Homebrew workflow updated formula (or update manually if needed)
-- [ ] Confirm Winget workflow submitted update PR (or submit manually if needed)
+- [ ] Confirm Winget workflow submitted update PR (after first Winget package merge)
 - [ ] Announce release if applicable
 
 ---
@@ -236,3 +238,13 @@ go build -trimpath -ldflags "-s -w -H=windowsgui" -o mitmproxy-controller.exe .
 ### Homebrew or Winget job did not run
 - Ensure `publish-packages.yml` ran on the `release` event (`published`/`released`)
 - Verify corresponding secret exists (`HOMEBREW_TAP_TOKEN` / `WINGET_TOKEN`)
+
+### Winget publish keeps skipping
+- Ensure initial Winget package bootstrap PR was merged in `microsoft/winget-pkgs`
+- For first submission, follow `WINGET_SETUP.md` and run `wingetcreate new` + `wingetcreate submit` on Windows
+- Keep GitHub Actions (`publish-packages.yml`) for all post-bootstrap updates
+
+### Winget token authorization fails (SAML/SSO) or returns 404
+- Ensure token is a classic PAT with `public_repo`
+- Authorize token for org SSO in GitHub token settings (Configure SSO)
+- If old authorize links return 404, rerun the submit/fork command to generate a fresh link

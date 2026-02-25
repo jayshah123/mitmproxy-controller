@@ -1,290 +1,171 @@
 # Winget Distribution Setup
 
-This document describes how to distribute mitmproxy-controller via Windows Package Manager (winget).
+This document defines the publishing model for `mitmproxy-controller` on Windows Package Manager (`winget`).
 
----
+Quick runbook: [WINGET_FIRST_PUBLISH.md](WINGET_FIRST_PUBLISH.md)
 
-## Overview
+## Publishing Model (First Principles)
 
-Winget uses a central community repository (`microsoft/winget-pkgs`) where package manifests are submitted via Pull Request. Once merged, users can install via:
+Winget is manifest-based.
+
+- We do **not** upload binaries to Microsoft.
+- We publish installer artifacts on GitHub Releases.
+- We submit YAML manifests to `microsoft/winget-pkgs` that point to those public artifacts.
+- Winget clients download directly from the release URL and verify SHA256.
+
+Implications:
+
+- Installer URLs must be public and stable.
+- Release artifacts must be immutable once published.
+- First package submission is a PR to `microsoft/winget-pkgs`.
+
+## Package Contract for This Repo
+
+- Package identifier: `Jayshah123.MitmproxyController`
+- Installer type: `zip` with nested `portable`
+- Windows asset name: `mitmproxy-controller_windows_amd64.zip`
+- Nested binary path inside ZIP: `mitmproxy-controller_windows_amd64.exe`
+- Release URL pattern:
+  - `https://github.com/jayshah123/mitmproxy-controller/releases/download/vX.Y.Z/mitmproxy-controller_windows_amd64.zip`
+
+## Canonical First Submission (Recommended)
+
+Use `wingetcreate` on a Windows machine for the first submission.
+
+## First Submission Checklist (Do This Now)
+
+Run this on a Windows machine, in order:
+
+1. Ensure release `v0.1.2` exists with `mitmproxy-controller_windows_amd64.zip`.
+2. Create a classic GitHub PAT with `public_repo`.
+3. Start/refresh enterprise SSO session in browser.
+4. Install WingetCreate.
+5. Generate manifest with `wingetcreate new <release-asset-url>`.
+6. Validate with `winget validate --manifest <folder>`.
+7. Submit with `wingetcreate submit --token <PAT> <folder>`.
+8. Wait for merge in `microsoft/winget-pkgs`.
+9. Trigger next release; GitHub Action will auto-submit update PRs.
+
+### 1. Ensure release artifact exists
+
+Create and publish a stable GitHub release first (example: `v0.1.2`) and verify the Windows ZIP is attached.
+
+### 2. Install WingetCreate
 
 ```powershell
-winget install Jayshah123.MitmproxyController
+winget install wingetcreate
 ```
 
----
+### 3. Create the manifest (new package)
 
-## Architecture
-
-```
-jayshah123/mitmproxy-controller          microsoft/winget-pkgs
-┌─────────────────────────────┐          ┌──────────────────────────────────┐
-│  Source code                │          │  manifests/j/Jayshah123/         │
-│  CI/CD workflow             │─────────▶│    MitmproxyController/          │
-│  Release artifacts (.zip)   │   PR     │      0.1.0/                      │
-└─────────────────────────────┘          │        *.installer.yaml          │
-                                         │        *.locale.en-US.yaml       │
-                                         │        *.yaml (version)          │
-                                         └──────────────────────────────────┘
+```powershell
+wingetcreate new https://github.com/jayshah123/mitmproxy-controller/releases/download/v0.1.2/mitmproxy-controller_windows_amd64.zip
 ```
 
----
+Use these key values in prompts:
 
-## Package Type: ZIP + Portable
+- `PackageIdentifier`: `Jayshah123.MitmproxyController`
+- `PackageVersion`: `0.1.2` (no leading `v`)
+- `InstallerType`: `zip` (auto-detected)
 
-Since we distribute a ZIP containing a single `.exe`, we use:
-- `InstallerType: zip`
-- `NestedInstallerType: portable`
+### 4. Validate locally
 
-This requires no installer tooling (MSI/MSIX) while still supporting `winget install`.
-
----
-
-## Manifest Structure
-
-Winget requires a **multi-file manifest** with 3 YAML files:
-
-```
-manifests/j/Jayshah123/MitmproxyController/0.1.0/
-├── Jayshah123.MitmproxyController.yaml              # Version manifest
-├── Jayshah123.MitmproxyController.locale.en-US.yaml # Locale manifest  
-└── Jayshah123.MitmproxyController.installer.yaml    # Installer manifest
+```powershell
+winget validate --manifest <path-to-generated-manifest-folder>
 ```
 
-### 1. Version Manifest (`Jayshah123.MitmproxyController.yaml`)
+Optional but recommended:
 
-```yaml
-PackageIdentifier: Jayshah123.MitmproxyController
-PackageVersion: 0.1.0
-DefaultLocale: en-US
-ManifestType: version
-ManifestVersion: 1.6.0
+```powershell
+winget settings --enable LocalManifestFiles
+winget install --manifest <path-to-generated-manifest-folder>
 ```
 
-### 2. Locale Manifest (`Jayshah123.MitmproxyController.locale.en-US.yaml`)
+### 5. Submit PR to winget-pkgs
 
-```yaml
-PackageIdentifier: Jayshah123.MitmproxyController
-PackageVersion: 0.1.0
-PackageLocale: en-US
-Publisher: jayshah123
-PublisherUrl: https://github.com/jayshah123
-PackageName: mitmproxy-controller
-PackageUrl: https://github.com/jayshah123/mitmproxy-controller
-License: MIT
-LicenseUrl: https://github.com/jayshah123/mitmproxy-controller/blob/main/LICENSE
-ShortDescription: System tray controller for mitmproxy
-Description: A cross-platform system tray application for controlling mitmproxy and system proxy settings.
-Tags:
-  - mitmproxy
-  - proxy
-  - network
-  - developer-tools
-ManifestType: defaultLocale
-ManifestVersion: 1.6.0
+```powershell
+wingetcreate submit --token <CLASSIC_PAT_WITH_public_repo> <path-to-generated-manifest-folder>
 ```
 
-### 3. Installer Manifest (`Jayshah123.MitmproxyController.installer.yaml`)
+Expected result: a PR is opened against `microsoft/winget-pkgs` for one package version.
 
-```yaml
-PackageIdentifier: Jayshah123.MitmproxyController
-PackageVersion: 0.1.0
-Installers:
-  - Architecture: x64
-    InstallerType: zip
-    NestedInstallerType: portable
-    NestedInstallerFiles:
-      - RelativeFilePath: mitmproxy-controller_windows_amd64.exe
-        PortableCommandAlias: mitmproxy-controller
-    InstallerUrl: https://github.com/jayshah123/mitmproxy-controller/releases/download/v0.1.0/mitmproxy-controller_windows_amd64.zip
-    InstallerSha256: REPLACE_WITH_ACTUAL_SHA256
-ManifestType: installer
-ManifestVersion: 1.6.0
-```
+## Auth and 404 Troubleshooting (Important)
 
----
+Winget submission commonly fails due to GitHub org SSO/SAML authorization.
 
-## Initial Submission (One-Time)
+- Use a **classic PAT** with `public_repo` scope.
+- If your org enforces SSO/SAML, authorize that token for org access.
+- If browser links from old failures return `404`, regenerate a fresh auth flow by rerunning the command (`wingetcreate submit` or `gh repo fork ...`).
+- Verify auth status:
 
-### Prerequisites
-
-1. Install winget (comes with Windows 11, or install via Microsoft Store)
-2. Install wingetcreate:
-   ```powershell
-   winget install wingetcreate
-   ```
-
-### Step 1: Create a Release
-
-First, create a release in your repo with the Windows artifact:
 ```bash
-git tag v0.1.0
-git push origin v0.1.0
+gh auth status -h github.com
 ```
 
-Wait for CI to create the GitHub Release with `mitmproxy-controller_windows_amd64.zip`.
+If needed, reauthorize in GitHub:
 
-### Step 2: Generate Manifest with wingetcreate
+- `Settings -> Developer settings -> Personal access tokens (classic)`
+- Open your token and use **Configure SSO** (if shown)
+
+## After First Merge: Automated Updates
+
+After the initial package is merged into `microsoft/winget-pkgs`, this repo uses CI automation for updates.
+
+Workflow:
+
+- `.github/workflows/publish-packages.yml`
+- Job: `winget`
+- Action: `vedantmgoyal9/winget-releaser@v2`
+
+Required repo secret:
+
+- `WINGET_TOKEN` (classic PAT with `public_repo`)
+
+Behavior:
+
+- Runs on release events for stable tags.
+- Skips prerelease tags (contains `-`).
+- Skips until package bootstrap exists in `winget-pkgs`.
+
+## Legacy Fallback (Not Primary)
+
+If `wingetcreate` is unavailable, the repo helper script can still be used:
+
+```bash
+./scripts/bootstrap-winget.sh --owner jayshah123 --version 0.1.2
+```
+
+What it does:
+
+- Reads release asset metadata and SHA256.
+- Creates the 3 Winget manifest files in winget-pkgs layout.
+- Pushes a branch to your `winget-pkgs` fork.
+- Opens a PR to `microsoft/winget-pkgs`.
+
+Treat this as fallback/advanced only. The default path for this repo is WingetCreate.
+
+## Manifest Layout Reference
+
+Winget manifests are stored under:
+
+```text
+manifests/j/Jayshah123/MitmproxyController/<version>/
+  Jayshah123.MitmproxyController.yaml
+  Jayshah123.MitmproxyController.locale.en-US.yaml
+  Jayshah123.MitmproxyController.installer.yaml
+```
+
+## Update Command (Manual Alternative)
+
+For later versions, if not using CI automation:
 
 ```powershell
-# Generate new manifest interactively
-wingetcreate new https://github.com/jayshah123/mitmproxy-controller/releases/download/v0.1.0/mitmproxy-controller_windows_amd64.zip
-
-# Or update existing manifest
-wingetcreate update Jayshah123.MitmproxyController --version 0.1.0 --urls https://github.com/jayshah123/mitmproxy-controller/releases/download/v0.1.0/mitmproxy-controller_windows_amd64.zip
+wingetcreate update Jayshah123.MitmproxyController --version 0.1.3 --urls https://github.com/jayshah123/mitmproxy-controller/releases/download/v0.1.3/mitmproxy-controller_windows_amd64.zip --submit --token <CLASSIC_PAT_WITH_public_repo>
 ```
-
-### Step 3: Validate Manifest Locally
-
-```powershell
-winget validate --manifest <path-to-manifest-folder>
-```
-
-### Step 4: Test in Windows Sandbox (Recommended)
-
-Clone winget-pkgs and use the sandbox test script:
-
-```powershell
-git clone https://github.com/microsoft/winget-pkgs.git
-cd winget-pkgs
-.\Tools\SandboxTest.ps1 <path-to-manifest-folder>
-```
-
-### Step 5: Submit PR
-
-**Option A: Using wingetcreate**
-```powershell
-wingetcreate submit <path-to-manifest-folder>
-```
-
-**Option B: Manual PR**
-1. Fork `microsoft/winget-pkgs`
-2. Add manifest files to `manifests/j/Jayshah123/MitmproxyController/<version>/`
-3. Create PR to `microsoft/winget-pkgs`
-
-### Step 6: Wait for Review
-
-- Automated validation runs (hash check, URL validation, binary scan)
-- Microsoft moderators review
-- Once merged, package becomes available via `winget search`
-
----
-
-## Automating Updates (GitHub Actions)
-
-After the first submission is merged, automate future updates.
-
-Prerequisites for automation:
-- At least one package version already exists in `microsoft/winget-pkgs`
-- A fork of `microsoft/winget-pkgs` exists under `jayshah123/winget-pkgs`
-
-### Create GitHub PAT
-
-1. Go to https://github.com/settings/tokens
-2. Generate new token (classic)
-3. Select scope: `public_repo`
-4. Add as secret `WINGET_TOKEN` in your repo
-
-### Add to CI Workflow
-
-```yaml
-name: publish-packages
-
-on:
-  release:
-    types: [published, released]
-
-jobs:
-  winget:
-    name: Update Winget Manifest
-    if: secrets.WINGET_TOKEN != '' && !contains(github.event.release.tag_name, '-')
-    runs-on: windows-latest
-    steps:
-      - name: Submit Winget manifest update
-        uses: vedantmgoyal9/winget-releaser@v2
-        with:
-          identifier: Jayshah123.MitmproxyController
-          release-tag: ${{ github.event.release.tag_name }}
-          installers-regex: mitmproxy-controller_windows_amd64\\.zip$
-          token: ${{ secrets.WINGET_TOKEN }}
-```
-
-This job runs only when a release event is emitted (`published` or `released`), skips automatically if `WINGET_TOKEN` is not configured, skips until the package is bootstrapped in `winget-pkgs`, and ignores prerelease tags (`-beta`, `-rc`).
-
----
-
-## Validation Checklist
-
-Before submitting, ensure:
-
-- [ ] Manifest files validate: `winget validate --manifest <folder>`
-- [ ] SHA256 hash matches the actual artifact
-- [ ] InstallerUrl points to GitHub Release asset (stable, direct URL)
-- [ ] Version follows SemVer (e.g., `1.2.3`)
-- [ ] All required metadata fields are filled
-- [ ] Tested in Windows Sandbox
-
----
-
-## Computing SHA256
-
-```powershell
-# PowerShell
-(Get-FileHash -Algorithm SHA256 .\mitmproxy-controller_windows_amd64.zip).Hash
-
-# Or using certutil
-certutil -hashfile mitmproxy-controller_windows_amd64.zip SHA256
-```
-
----
-
-## Common Validation Errors
-
-| Error | Cause | Fix |
-|-------|-------|-----|
-| Hash mismatch | ZIP was re-uploaded after manifest created | Recompute SHA256 |
-| URL validation failed | Asset not publicly accessible | Ensure release is public |
-| Binary validation failed | SmartScreen/reputation issue | May need Microsoft review |
-| Manifest path error | Wrong folder structure | Check `manifests/j/Jayshah123/MitmproxyController/<version>/` |
-
----
-
-## Portable ZIP Limitations
-
-Using `InstallerType: zip` + `NestedInstallerType: portable`:
-
-| Feature | Supported |
-|---------|-----------|
-| `winget install` | ✅ |
-| `winget upgrade` | ✅ |
-| `winget uninstall` | ✅ |
-| Start Menu shortcut | ❌ |
-| Add/Remove Programs entry | Limited |
-| Auto-start on login | ❌ (manual setup required) |
-
-For full Windows integration, consider MSI/MSIX installer in the future.
-
----
-
-## Future: MSI/MSIX Installer
-
-If you later need:
-- Start Menu shortcuts
-- Add/Remove Programs entries
-- Auto-start configuration
-- Enterprise deployment
-
-Consider:
-- **Inno Setup**: Easy EXE installer creation
-- **WiX Toolset**: MSI creation
-- **MSIX**: Modern Windows packaging (requires code signing)
-
----
 
 ## References
 
-- [Winget Package Submission Guide](https://learn.microsoft.com/en-us/windows/package-manager/package/)
-- [Manifest Schema](https://learn.microsoft.com/en-us/windows/package-manager/package/manifest)
-- [winget-pkgs Repository](https://github.com/microsoft/winget-pkgs)
-- [wingetcreate Tool](https://github.com/microsoft/winget-create)
-- [Submission Policies](https://learn.microsoft.com/en-us/windows/package-manager/package/windows-package-manager-policies)
+- https://learn.microsoft.com/en-us/windows/package-manager/package/
+- https://learn.microsoft.com/en-us/windows/package-manager/package/manifest
+- https://github.com/microsoft/winget-pkgs
+- https://github.com/microsoft/winget-create
