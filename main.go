@@ -14,10 +14,20 @@ var (
 	mStopMitm     *systray.MenuItem
 	mEnableProxy  *systray.MenuItem
 	mDisableProxy *systray.MenuItem
+	mProfiles     *systray.MenuItem
+	mEditProfile  *systray.MenuItem
+	mOpenScripts  *systray.MenuItem
 	mViewFlows    *systray.MenuItem
 	mRevealLogs   *systray.MenuItem
+	mOpenMitmHome *systray.MenuItem
+	mEditConfig   *systray.MenuItem
 	mInstallCert  *systray.MenuItem
 	mRemoveCert   *systray.MenuItem
+)
+
+var (
+	profileItems      = map[string]*systray.MenuItem{}
+	profileSelectionC = make(chan string, 32)
 )
 
 // Track cert state for click handler
@@ -34,6 +44,10 @@ func onReady() {
 	systray.SetTitle("⚡")
 	systray.SetTooltip("mitmproxy Controller")
 
+	if err := initProfiles(); err != nil {
+		fmt.Printf("Failed to initialize profiles: %v\n", err)
+	}
+
 	mStatus = systray.AddMenuItem("Status: Checking...", "Current status")
 	mStatus.Disable()
 
@@ -49,8 +63,17 @@ func onReady() {
 
 	systray.AddSeparator()
 
+	mProfiles = systray.AddMenuItem("Service Profile", "Select active service profile")
+	syncProfileSubmenu()
+	mEditProfile = systray.AddMenuItem("Edit Active Profile", "Open active service profile file")
+	mOpenScripts = systray.AddMenuItem("Open Active Scripts Folder", "Open folder for active profile scripts")
+
+	systray.AddSeparator()
+
 	mViewFlows = systray.AddMenuItem("View Flows (Web UI)", "Open mitmweb interface in browser")
 	mRevealLogs = systray.AddMenuItem("Reveal Logs Folder", "Open logs folder in file manager")
+	mOpenMitmHome = systray.AddMenuItem("Open mitmproxy Home Folder", "Open ~/.mitmproxy folder in file manager")
+	mEditConfig = systray.AddMenuItem("Edit mitmproxy Config", "Open ~/.mitmproxy/config.yaml in your default editor")
 
 	systray.AddSeparator()
 
@@ -99,6 +122,34 @@ func onReady() {
 				mStatus.SetTitle(disableProxy())
 				updateStatus()
 
+			case profileID := <-profileSelectionC:
+				mStatus.SetTitle(applyProfileSelection(profileID))
+				updateStatus()
+
+			case <-mEditProfile.ClickedCh:
+				profilePath := selectedProfilePath()
+				if profilePath == "" {
+					mStatus.SetTitle("No active profile file found")
+					continue
+				}
+				if err := openFile(profilePath); err != nil {
+					mStatus.SetTitle(fmt.Sprintf("Failed to open profile: %v", err))
+					continue
+				}
+				mStatus.SetTitle("Opened active profile")
+
+			case <-mOpenScripts.ClickedCh:
+				scriptsDir, err := ensureSelectedProfileScriptsFolder()
+				if err != nil {
+					mStatus.SetTitle(fmt.Sprintf("Failed to prepare scripts folder: %v", err))
+					continue
+				}
+				if err := revealInFileManager(scriptsDir); err != nil {
+					mStatus.SetTitle(fmt.Sprintf("Failed to open scripts folder: %v", err))
+					continue
+				}
+				mStatus.SetTitle("Opened scripts folder")
+
 			case <-mViewFlows.ClickedCh:
 				if isWebUIAvailable() {
 					openURL(getWebUIURL())
@@ -106,6 +157,30 @@ func onReady() {
 
 			case <-mRevealLogs.ClickedCh:
 				revealInFileManager(getLogsDirectory())
+
+			case <-mOpenMitmHome.ClickedCh:
+				mitmHomeDir, err := ensureMitmHomeDirectoryExists()
+				if err != nil {
+					mStatus.SetTitle(fmt.Sprintf("Failed to prepare mitmproxy home: %v", err))
+					continue
+				}
+				if err := revealInFileManager(mitmHomeDir); err != nil {
+					mStatus.SetTitle(fmt.Sprintf("Failed to open mitmproxy home: %v", err))
+					continue
+				}
+				mStatus.SetTitle("Opened ~/.mitmproxy")
+
+			case <-mEditConfig.ClickedCh:
+				configPath, err := ensureMitmConfigExists()
+				if err != nil {
+					mStatus.SetTitle(fmt.Sprintf("Failed to prepare config: %v", err))
+					continue
+				}
+				if err := openFile(configPath); err != nil {
+					mStatus.SetTitle(fmt.Sprintf("Failed to open config: %v", err))
+					continue
+				}
+				mStatus.SetTitle("Opened config.yaml")
 
 			case <-mInstallCert.ClickedCh:
 				if certInstalled && !certTrusted {
@@ -120,6 +195,11 @@ func onReady() {
 				updateStatus()
 
 			case <-mRefresh.ClickedCh:
+				if err := loadProfilesFromDisk(); err != nil {
+					mStatus.SetTitle(fmt.Sprintf("Failed to refresh profiles: %v", err))
+				} else {
+					syncProfileSubmenu()
+				}
 				updateStatus()
 
 			case <-mQuit.ClickedCh:
@@ -128,6 +208,75 @@ func onReady() {
 			}
 		}
 	}()
+}
+
+func syncProfileSubmenu() {
+	profiles := listProfiles()
+	visibleIDs := make(map[string]bool, len(profiles))
+
+	for _, profile := range profiles {
+		p := profile
+		visibleIDs[p.ID] = true
+		item, ok := profileItems[p.ID]
+		if !ok {
+			item = mProfiles.AddSubMenuItemCheckbox(p.Name, p.ID, p.ID == selectedProfileID)
+			profileItems[p.ID] = item
+			wireProfileSelection(p.ID, item)
+		} else {
+			item.SetTitle(p.Name)
+			item.Show()
+		}
+
+		if p.ID == selectedProfileID {
+			item.Check()
+		} else {
+			item.Uncheck()
+		}
+	}
+
+	for id, item := range profileItems {
+		if !visibleIDs[id] {
+			item.Hide()
+		}
+	}
+}
+
+func wireProfileSelection(id string, menuItem *systray.MenuItem) {
+	go func() {
+		for range menuItem.ClickedCh {
+			select {
+			case profileSelectionC <- id:
+			default:
+			}
+		}
+	}()
+}
+
+func applyProfileSelection(profileID string) string {
+	if profileID == selectedProfileID {
+		return fmt.Sprintf("Service profile already selected: %s", selectedProfileName())
+	}
+
+	if err := setSelectedProfile(profileID); err != nil {
+		return fmt.Sprintf("Failed to select profile: %v", err)
+	}
+
+	for id, item := range profileItems {
+		if id == selectedProfileID {
+			item.Check()
+		} else {
+			item.Uncheck()
+		}
+	}
+
+	name := selectedProfileName()
+	if isMitmproxyRunning() {
+		stopResult := stopMitmproxy()
+		startResult := startMitmproxy()
+		return fmt.Sprintf("Profile %s applied (%s, %s)", name, stopResult, startResult)
+	}
+
+	return fmt.Sprintf("Selected profile: %s", name)
 }
 
 func onExit() {
@@ -144,6 +293,10 @@ func disableAllActions() {
 func updateStatus() {
 	mitmRunning := isMitmproxyRunning()
 	proxyEnabled := isProxyEnabled()
+	profileName := selectedProfileName()
+	proxyCompatible, webCompatible := selectedProfileCompatibility()
+	warnings := selectedProfileWarnings()
+	loadWarnings := profileLoadWarnings()
 
 	// Update status text and icon
 	var statusText string
@@ -160,7 +313,15 @@ func updateStatus() {
 		systray.SetTitle("⚫")
 		statusText = "mitmproxy: Stopped | Proxy: Disabled"
 	}
+	statusText = fmt.Sprintf("%s | Profile: %s", statusText, profileName)
+	if len(warnings) > 0 {
+		statusText = fmt.Sprintf("%s | Warnings: %d", statusText, len(warnings))
+	}
+	if len(loadWarnings) > 0 {
+		statusText = fmt.Sprintf("%s | Profile load warnings: %d", statusText, len(loadWarnings))
+	}
 	mStatus.SetTitle(statusText)
+	mProfiles.SetTitle(fmt.Sprintf("Service Profile: %s", profileName))
 
 	// Enable/disable menu items based on current state
 	if mitmRunning {
@@ -171,7 +332,10 @@ func updateStatus() {
 		mStopMitm.Disable()
 	}
 
-	if proxyEnabled {
+	if !proxyCompatible {
+		mEnableProxy.Disable()
+		mDisableProxy.Disable()
+	} else if proxyEnabled {
 		mEnableProxy.Disable()
 		mDisableProxy.Enable()
 	} else {
@@ -180,7 +344,7 @@ func updateStatus() {
 	}
 
 	// View Flows only available when mitmweb is running
-	if isWebUIAvailable() {
+	if isWebUIAvailable() && webCompatible {
 		mViewFlows.Enable()
 	} else {
 		mViewFlows.Disable()

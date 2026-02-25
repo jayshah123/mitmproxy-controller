@@ -13,3 +13,7 @@ func openURL(url string) error {
 func revealInFileManager(path string) error {
 	return exec.Command("explorer.exe", path).Start()
 }
+
+func openFile(path string) error {
+	return exec.Command("rundll32", "url.dll,FileProtocolHandler", path).Start()
+}

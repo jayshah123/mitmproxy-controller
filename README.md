@@ -8,14 +8,21 @@ A cross-platform **system tray** app for controlling [mitmproxy](https://mitmpro
 
 ![macOS Menu Bar UI](assets/macos-ui.png)
 
+### macOS (Service Profiles UI)
+
+![macOS Service Profiles UI](assets/macos-ui-profiles.png)
+
 *Windows UI coming soon.*
 
 ## Features
 
 - **Start/Stop mitmproxy** - Launch or kill the mitmproxy process (uses mitmweb if available, falls back to mitmdump)
 - **Enable/Disable System Proxy** - Configure system proxy to route traffic through mitmproxy (127.0.0.1:8899)
+- **Service Profiles** - Select per-service addon/option overlays from tray (with restart-on-switch)
 - **View Flows (Web UI)** - Open mitmweb interface in browser (port 8898) when mitmweb is running
 - **Reveal Logs Folder** - Open the logs directory containing flow captures (`.mitm` files)
+- **Open mitmproxy Home Folder** - Open `~/.mitmproxy` (creates it if missing)
+- **Edit mitmproxy Config** - Open `~/.mitmproxy/config.yaml` (creates it if missing)
 - **Install CA Certificate** - One-click installation of mitmproxy CA cert for HTTPS interception
 - **Smart Menu Items** - Actions are disabled when not applicable (e.g., can't start if already running)
 - **Auto-Refresh** - Status updates every 5 seconds via background polling
@@ -59,6 +66,20 @@ mitmproxy-controller.exe
 ```
 
 The app runs in the system tray (macOS: top-right, Windows: bottom-right).
+
+## Service Profiles
+
+Service profiles let you run different addons/options per target service while keeping a shared base config.
+
+1. Profile files are stored at:
+   - macOS: `~/Library/Application Support/mitmproxy-controller/profiles/`
+   - Windows: `%APPDATA%\mitmproxy-controller\profiles\`
+2. Active selection is stored in:
+   - macOS: `~/Library/Application Support/mitmproxy-controller/state.json`
+   - Windows: `%APPDATA%\mitmproxy-controller\state.json`
+3. Base mitm config remains: `~/.mitmproxy/config.yaml`
+
+Detailed UX, schema, and examples: [PROFILES_UX.md](PROFILES_UX.md)
 
 ## Folder Layout
 

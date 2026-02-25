@@ -6,15 +6,16 @@ import (
 	"os/exec"
 	"path/filepath"
 	"sort"
+	"strings"
 	"time"
 )
 
 const (
-	proxyHost    = "127.0.0.1"
-	proxyPort    = "8899"
-	webUIPort    = "8898"
-	webPassword  = "mitmcontroller"
-	maxLogFiles  = 10
+	proxyHost   = "127.0.0.1"
+	proxyPort   = "8899"
+	webUIPort   = "8898"
+	webPassword = "mitmcontroller"
+	maxLogFiles = 10
 )
 
 var (
@@ -75,6 +76,14 @@ func cleanupOldLogs() {
 }
 
 func startMitm() string {
+	if err := loadProfilesFromDisk(); err != nil {
+		return fmt.Sprintf("Failed to load profiles: %v", err)
+	}
+	activeProfile, ok := getSelectedProfile()
+	if !ok {
+		return "No active profile found"
+	}
+
 	if mitmProcess != nil {
 		if isProcessAlive(mitmProcess) {
 			return "mitmproxy is already running"
@@ -92,22 +101,18 @@ func startMitm() string {
 
 	var cmd *exec.Cmd
 	if _, err := exec.LookPath("mitmweb"); err == nil {
-		cmd = exec.Command("mitmweb",
-			"--listen-host", proxyHost,
-			"--listen-port", proxyPort,
-			"--web-host", proxyHost,
-			"--web-port", webUIPort,
-			"--no-web-open-browser",
-			"--set", "web_password="+webPassword,
-			"-w", currentLogPath,
-		)
+		args, buildErr := buildMitmArgs(true, currentLogPath, activeProfile)
+		if buildErr != nil {
+			return fmt.Sprintf("Failed to build mitmweb command: %v", buildErr)
+		}
+		cmd = exec.Command("mitmweb", args...)
 		usingMitmweb = true
 	} else {
-		cmd = exec.Command("mitmdump",
-			"--listen-host", proxyHost,
-			"--listen-port", proxyPort,
-			"-w", currentLogPath,
-		)
+		args, buildErr := buildMitmArgs(false, currentLogPath, activeProfile)
+		if buildErr != nil {
+			return fmt.Sprintf("Failed to build mitmdump command: %v", buildErr)
+		}
+		cmd = exec.Command("mitmdump", args...)
 		usingMitmweb = false
 	}
 
@@ -131,7 +136,7 @@ func startMitm() string {
 	if usingMitmweb {
 		mode = "mitmweb"
 	}
-	return fmt.Sprintf("%s started (PID: %d)", mode, cmd.Process.Pid)
+	return fmt.Sprintf("%s started (PID: %d) | profile: %s", mode, cmd.Process.Pid, activeProfile.Name)
 }
 
 func stopMitm() string {
@@ -172,4 +177,95 @@ func getLogsDirectory() string {
 
 func getCurrentLogPath() string {
 	return currentLogPath
+}
+
+func getMitmHomeDirectory() string {
+	home, err := os.UserHomeDir()
+	if err != nil || home == "" {
+		home = os.TempDir()
+	}
+	return filepath.Join(home, ".mitmproxy")
+}
+
+func ensureMitmHomeDirectoryExists() (string, error) {
+	mitmHomeDir := getMitmHomeDirectory()
+	absPath, err := filepath.Abs(mitmHomeDir)
+	if err == nil {
+		mitmHomeDir = absPath
+	}
+
+	if err := os.MkdirAll(mitmHomeDir, 0755); err != nil {
+		return "", err
+	}
+	return mitmHomeDir, nil
+}
+
+func getMitmConfigPath() string {
+	return filepath.Join(getMitmHomeDirectory(), "config.yaml")
+}
+
+func ensureMitmConfigExists() (string, error) {
+	mitmHomeDir, err := ensureMitmHomeDirectoryExists()
+	if err != nil {
+		return "", err
+	}
+	configPath := filepath.Join(mitmHomeDir, "config.yaml")
+
+	f, err := os.OpenFile(configPath, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0644)
+	if err == nil {
+		if closeErr := f.Close(); closeErr != nil {
+			return "", closeErr
+		}
+		return configPath, nil
+	}
+	if os.IsExist(err) {
+		return configPath, nil
+	}
+
+	return "", err
+}
+
+func buildMitmArgs(useWebUI bool, logPath string, profile ServiceProfile) ([]string, error) {
+	args := []string{
+		"--set", "confdir=" + getMitmHomeDirectory(),
+		"--set", "listen_host=" + proxyHost,
+		"--set", "listen_port=" + proxyPort,
+	}
+
+	if useWebUI {
+		args = append(args,
+			"--set", "web_host="+proxyHost,
+			"--set", "web_port="+webUIPort,
+			"--set", "web_password="+webPassword,
+			"--no-web-open-browser",
+		)
+	}
+
+	if profile.Mode != "" {
+		args = append(args, "--mode", profile.Mode)
+	}
+
+	for _, scriptPath := range profile.ScriptPaths {
+		if _, err := os.Stat(scriptPath); err != nil {
+			return nil, fmt.Errorf("profile %q has missing script %q", profile.Name, scriptPath)
+		}
+		args = append(args, "-s", scriptPath)
+	}
+
+	keys := make([]string, 0, len(profile.SetOptions))
+	for key := range profile.SetOptions {
+		keys = append(keys, key)
+	}
+	sort.Strings(keys)
+
+	for _, key := range keys {
+		if strings.EqualFold(strings.TrimSpace(key), "confdir") {
+			continue
+		}
+		value := profile.SetOptions[key]
+		args = append(args, "--set", fmt.Sprintf("%s=%s", key, value))
+	}
+
+	args = append(args, "-w", logPath)
+	return args, nil
 }

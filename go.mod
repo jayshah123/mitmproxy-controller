@@ -2,7 +2,10 @@ module mitmproxy-controller
 
 go 1.23
 
-require github.com/getlantern/systray v1.2.2
+require (
+	github.com/getlantern/systray v1.2.2
+	gopkg.in/yaml.v3 v3.0.1
+)
 
 require (
 	github.com/getlantern/context v0.0.0-20190109183933-c447772a6520 // indirect
