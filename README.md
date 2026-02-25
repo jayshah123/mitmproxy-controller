@@ -5,11 +5,6 @@ A cross-platform **system tray** app for controlling [mitmproxy](https://mitmpro
 ## UI
 
 ### macOS
-
-![macOS Menu Bar UI](assets/macos-ui.png)
-
-### macOS (Service Profiles UI)
-
 ![macOS Service Profiles UI](assets/macos-ui-profiles.png)
 
 *Windows UI coming soon.*
