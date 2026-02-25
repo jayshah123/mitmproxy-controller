@@ -124,6 +124,7 @@ Configure these in `Repository Settings → Secrets and variables → Actions`:
 
 If a secret is missing, that package job is skipped.
 If the tag contains a suffix like `-beta` or `-rc`, package jobs are skipped.
+Winget updates are also skipped until the initial package bootstrap exists in `microsoft/winget-pkgs`.
 
 ---
 

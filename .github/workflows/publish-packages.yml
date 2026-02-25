@@ -72,8 +72,27 @@ jobs:
         shell: pwsh
         run: Write-Host "WINGET_TOKEN is not configured; skipping Winget publish."
 
-      - name: Submit Winget manifest update
+      - name: Check package bootstrap in winget-pkgs
         if: env.WINGET_TOKEN != ''
+        id: winget-bootstrap
+        shell: pwsh
+        run: |
+          $pkgUrl = "https://github.com/microsoft/winget-pkgs/tree/master/manifests/j/Jayshah123/MitmproxyController"
+          try {
+            Invoke-WebRequest -Uri $pkgUrl -Method Head -ErrorAction Stop | Out-Null
+            "exists=true" >> $env:GITHUB_OUTPUT
+          } catch {
+            Write-Host "Package is not yet bootstrapped in winget-pkgs; skipping automated update."
+            "exists=false" >> $env:GITHUB_OUTPUT
+          }
+
+      - name: Skip when package is not bootstrapped
+        if: env.WINGET_TOKEN != '' && steps.winget-bootstrap.outputs.exists != 'true'
+        shell: pwsh
+        run: Write-Host "Skipped Winget publish because initial package submission is not present."
+
+      - name: Submit Winget manifest update
+        if: env.WINGET_TOKEN != '' && steps.winget-bootstrap.outputs.exists == 'true'
         uses: vedantmgoyal9/winget-releaser@v2
         with:
           identifier: Jayshah123.MitmproxyController
