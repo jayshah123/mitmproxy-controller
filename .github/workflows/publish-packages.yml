@@ -1,0 +1,69 @@
+name: publish-packages
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      release_tag:
+        description: "Release tag to publish (for manual runs), e.g. v1.2.3"
+        required: false
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  resolve-tag:
+    name: Resolve release tag
+    runs-on: ubuntu-latest
+    outputs:
+      tag: ${{ steps.resolve.outputs.tag }}
+    steps:
+      - name: Resolve tag
+        id: resolve
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ "${{ github.event_name }}" = "release" ]; then
+            tag="${{ github.event.release.tag_name }}"
+          else
+            tag="${{ inputs.release_tag }}"
+          fi
+
+          if [ -z "$tag" ]; then
+            echo "release_tag input is required for workflow_dispatch" >&2
+            exit 1
+          fi
+
+          echo "tag=$tag" >> "$GITHUB_OUTPUT"
+
+  homebrew:
+    name: Update Homebrew Formula
+    needs: [resolve-tag]
+    if: secrets.HOMEBREW_TAP_TOKEN != '' && !contains(needs.resolve-tag.outputs.tag, '-')
+    runs-on: ubuntu-latest
+    steps:
+      - name: Bump Homebrew formula
+        uses: mislav/bump-homebrew-formula-action@v3
+        with:
+          formula-name: mitmproxy-controller
+          homebrew-tap: jayshah123/homebrew-tap
+          tag-name: ${{ needs.resolve-tag.outputs.tag }}
+          download-url: https://github.com/${{ github.repository }}/releases/download/${{ needs.resolve-tag.outputs.tag }}/mitmproxy-controller_darwin_arm64.tar.gz
+        env:
+          COMMITTER_TOKEN: ${{ secrets.HOMEBREW_TAP_TOKEN }}
+
+  winget:
+    name: Update Winget Manifest
+    needs: [resolve-tag]
+    if: secrets.WINGET_TOKEN != '' && !contains(needs.resolve-tag.outputs.tag, '-')
+    runs-on: windows-latest
+    steps:
+      - name: Submit Winget manifest update
+        uses: vedantmgoyal9/winget-releaser@v2
+        with:
+          identifier: Jayshah123.MitmproxyController
+          release-tag: ${{ needs.resolve-tag.outputs.tag }}
+          installers-regex: mitmproxy-controller_windows_amd64\\.zip$
+          token: ${{ secrets.WINGET_TOKEN }}

@@ -6,9 +6,11 @@ This document describes the CI/CD pipeline, build process, and release workflow.
 
 ## CI/CD Overview
 
-The project uses GitHub Actions for automated builds and releases.
+The project uses GitHub Actions for automated builds, releases, and package manager publishing.
 
-**Workflow file:** `.github/workflows/ci.yml`
+**Workflow files:**
+- `.github/workflows/ci.yml` (build + GitHub Release artifacts)
+- `.github/workflows/publish-packages.yml` (Homebrew + Winget publishing)
 
 ---
 
@@ -18,7 +20,9 @@ The project uses GitHub Actions for automated builds and releases.
 |---------|--------------|
 | Push to any branch | Build all platforms, upload as workflow artifacts |
 | Pull request | Build all platforms, upload as workflow artifacts |
+| Push to `main` | `auto-version-tag.yml` may create next semver tag |
 | Push tag `v*` (e.g., `v0.1.0`) | Build all platforms + create GitHub Release with artifacts |
+| Release published | Publish package updates to Homebrew/Winget for stable tags (if secrets configured) |
 
 ---
 
@@ -88,16 +92,37 @@ git push origin v0.1.0
 ### 2. Wait for CI
 
 The workflow will:
-1. Build all 3 platform binaries
+1. Build 2 platform binaries
 2. Package them (tar.gz for macOS, zip for Windows)
 3. Create a GitHub Release with auto-generated release notes
 4. Attach all artifacts to the release
+5. Trigger package publishing workflow on release publish event
 
 ### 3. Verify
 
 - Go to **Releases** page on GitHub
-- Confirm all 3 artifacts are attached
+- Confirm both artifacts are attached
 - Edit release notes if needed
+
+### 4. Verify package publishing
+
+- Check **Actions → publish-packages** run for the same release tag
+- Confirm Homebrew tap formula PR/commit was created
+- Confirm Winget PR was submitted to `microsoft/winget-pkgs`
+
+---
+
+## Required Secrets
+
+Configure these in `Repository Settings → Secrets and variables → Actions`:
+
+| Secret | Required For | Notes |
+|--------|--------------|-------|
+| `HOMEBREW_TAP_TOKEN` | Homebrew publishing | PAT with access to `jayshah123/homebrew-tap` |
+| `WINGET_TOKEN` | Winget publishing | GitHub token used by winget releaser to submit PRs |
+
+If a secret is missing, that package job is skipped.
+If the tag contains a suffix like `-beta` or `-rc`, package jobs are skipped.
 
 ---
 
@@ -108,6 +133,27 @@ The workflow will:
 | `v<major>.<minor>.<patch>` | `v1.2.3` | Stable release |
 | `v<major>.<minor>.<patch>-beta.<n>` | `v1.0.0-beta.1` | Pre-release |
 | `v<major>.<minor>.<patch>-rc.<n>` | `v1.0.0-rc.1` | Release candidate |
+
+---
+
+## Automatic Version Tagging
+
+Workflow: `.github/workflows/auto-version-tag.yml`
+
+- Runs on pushes to `main`
+- Uses conventional commits since the last `v*` tag
+- Creates and pushes one new annotated semver tag when needed
+
+Auto bump rules:
+
+| Commit Pattern | Version Bump |
+|----------------|--------------|
+| `BREAKING CHANGE` or `type(scope)!:` | major |
+| `feat:` | minor |
+| `fix:` or `perf:` | patch |
+| No matching commits | no tag |
+
+You can also run it manually from Actions with a forced bump (`patch`/`minor`/`major`).
 
 ---
 
@@ -133,10 +179,10 @@ go build -trimpath -ldflags "-s -w -H=windowsgui" -o mitmproxy-controller.exe .
 
 ## Post-Release Checklist
 
-- [ ] Verify release page has all 3 artifacts
+- [ ] Verify release page has both artifacts
 - [ ] Download and test each binary
-- [ ] Update Homebrew formula (if using tap) with new version and SHA256
-- [ ] Update winget manifest (if published) with new version
+- [ ] Confirm Homebrew workflow updated formula (or update manually if needed)
+- [ ] Confirm Winget workflow submitted update PR (or submit manually if needed)
 - [ ] Announce release if applicable
 
 ---
@@ -158,3 +204,7 @@ go build -trimpath -ldflags "-s -w -H=windowsgui" -o mitmproxy-controller.exe .
 ### Artifacts missing from release
 - Check the `release` job completed successfully
 - Verify `needs: [build]` ensures all builds finished first
+
+### Homebrew or Winget job did not run
+- Ensure `publish-packages.yml` ran on the `release: published` event
+- Verify corresponding secret exists (`HOMEBREW_TAP_TOKEN` / `WINGET_TOKEN`)

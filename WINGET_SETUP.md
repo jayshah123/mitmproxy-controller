@@ -172,7 +172,11 @@ wingetcreate submit <path-to-manifest-folder>
 
 ## Automating Updates (GitHub Actions)
 
-After the first submission is merged, automate future updates:
+After the first submission is merged, automate future updates.
+
+Prerequisites for automation:
+- At least one package version already exists in `microsoft/winget-pkgs`
+- A fork of `microsoft/winget-pkgs` exists under `jayshah123/winget-pkgs`
 
 ### Create GitHub PAT
 
@@ -184,27 +188,28 @@ After the first submission is merged, automate future updates:
 ### Add to CI Workflow
 
 ```yaml
+name: publish-packages
+
+on:
+  release:
+    types: [published]
+
+jobs:
   winget:
     name: Update Winget Manifest
-    if: startsWith(github.ref, 'refs/tags/v')
-    needs: [release]
+    if: secrets.WINGET_TOKEN != '' && !contains(github.event.release.tag_name, '-')
     runs-on: windows-latest
     steps:
-      - name: Install wingetcreate
-        run: |
-          iwr https://aka.ms/wingetcreate/latest -OutFile wingetcreate.exe
-
-      - name: Update and Submit Manifest
-        run: |
-          $version = "${{ github.ref_name }}".TrimStart('v')
-          $url = "https://github.com/jayshah123/mitmproxy-controller/releases/download/${{ github.ref_name }}/mitmproxy-controller_windows_amd64.zip"
-          
-          .\wingetcreate.exe update Jayshah123.MitmproxyController `
-            --version $version `
-            --urls $url `
-            --token ${{ secrets.WINGET_TOKEN }} `
-            --submit
+      - name: Submit Winget manifest update
+        uses: vedantmgoyal9/winget-releaser@v2
+        with:
+          identifier: Jayshah123.MitmproxyController
+          release-tag: ${{ github.event.release.tag_name }}
+          installers-regex: mitmproxy-controller_windows_amd64\\.zip$
+          token: ${{ secrets.WINGET_TOKEN }}
 ```
+
+This job runs only when a release is published, skips automatically if `WINGET_TOKEN` is not configured, and ignores prerelease tags (`-beta`, `-rc`).
 
 ---
 

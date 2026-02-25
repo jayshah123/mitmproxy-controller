@@ -1,0 +1,135 @@
+name: auto-version-tag
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      bump:
+        description: "Version bump strategy"
+        required: false
+        default: auto
+        type: choice
+        options:
+          - auto
+          - patch
+          - minor
+          - major
+
+permissions:
+  contents: write
+
+concurrency:
+  group: auto-version-tag-${{ github.ref_name }}
+  cancel-in-progress: false
+
+jobs:
+  tag:
+    name: Create version tag
+    # Avoid infinite loop if a tag push triggers workflow context unexpectedly.
+    if: github.ref_type == 'branch'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Compute next semver tag
+        id: version
+        shell: bash
+        env:
+          INPUT_BUMP: ${{ inputs.bump }}
+        run: |
+          set -euo pipefail
+
+          if git describe --tags --exact-match HEAD >/dev/null 2>&1; then
+            echo "HEAD already has a version tag; skipping."
+            echo "should_tag=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          latest_tag="$(git tag --list 'v*' --sort=-v:refname | head -n1)"
+          if [ -z "$latest_tag" ]; then
+            latest_tag="v0.0.0"
+          fi
+
+          echo "Latest tag: $latest_tag"
+
+          if [ "$latest_tag" = "v0.0.0" ]; then
+            messages="$(git log --format='%s%n%b%n---')"
+          else
+            messages="$(git log "${latest_tag}..HEAD" --format='%s%n%b%n---')"
+          fi
+
+          bump="${INPUT_BUMP:-auto}"
+          if [ -z "$bump" ]; then
+            bump="auto"
+          fi
+
+          if [ "$bump" = "auto" ]; then
+            if printf '%s\n' "$messages" | grep -Eiq 'BREAKING CHANGE|^[a-z]+(\([^)]+\))?!:'; then
+              bump="major"
+            elif printf '%s\n' "$messages" | grep -Eiq '^feat(\([^)]+\))?:'; then
+              bump="minor"
+            elif printf '%s\n' "$messages" | grep -Eiq '^(fix|perf)(\([^)]+\))?:'; then
+              bump="patch"
+            else
+              echo "No feat/fix/perf/BREAKING CHANGE commits found; skipping tag."
+              echo "should_tag=false" >> "$GITHUB_OUTPUT"
+              exit 0
+            fi
+          fi
+
+          current="${latest_tag#v}"
+          IFS='.' read -r major minor patch <<< "$current"
+
+          case "$bump" in
+            major)
+              major=$((major + 1))
+              minor=0
+              patch=0
+              ;;
+            minor)
+              minor=$((minor + 1))
+              patch=0
+              ;;
+            patch)
+              patch=$((patch + 1))
+              ;;
+            *)
+              echo "Unsupported bump: $bump" >&2
+              exit 1
+              ;;
+          esac
+
+          next_tag="v${major}.${minor}.${patch}"
+
+          if git rev-parse "$next_tag" >/dev/null 2>&1; then
+            echo "Tag already exists: $next_tag; skipping."
+            echo "should_tag=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          echo "should_tag=true" >> "$GITHUB_OUTPUT"
+          echo "latest_tag=$latest_tag" >> "$GITHUB_OUTPUT"
+          echo "bump=$bump" >> "$GITHUB_OUTPUT"
+          echo "next_tag=$next_tag" >> "$GITHUB_OUTPUT"
+
+      - name: Create and push tag
+        if: steps.version.outputs.should_tag == 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+          tag="${{ steps.version.outputs.next_tag }}"
+          git tag -a "$tag" -m "Release $tag"
+          git push origin "$tag"
+
+      - name: Summary
+        shell: bash
+        run: |
+          if [ "${{ steps.version.outputs.should_tag }}" = "true" ]; then
+            echo "Created tag ${{ steps.version.outputs.next_tag }} from ${{ steps.version.outputs.latest_tag }} using ${{ steps.version.outputs.bump }} bump." >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "No new tag created." >> "$GITHUB_STEP_SUMMARY"
+          fi

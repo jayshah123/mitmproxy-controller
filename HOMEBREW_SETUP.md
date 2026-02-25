@@ -22,11 +22,11 @@ brew install mitmproxy-controller
 jayshah123/mitmproxy-controller     jayshah123/homebrew-tap
 ┌─────────────────────────────┐     ┌─────────────────────────┐
 │  Source code                │     │  Formula/               │
-│  CI/CD workflow             │────▶│    mitmproxy-controller.rb
+│  publish-packages workflow  │────▶│    mitmproxy-controller.rb
 │  Release artifacts          │     │  README.md              │
 └─────────────────────────────┘     └─────────────────────────┘
         │                                     ▲
-        │  On release tag (v*)                │
+        │  On GitHub release publish           │
         └─────────────────────────────────────┘
               Auto-updates formula
 ```
@@ -118,13 +118,15 @@ git tag v0.1.0
 git push origin v0.1.0
 ```
 
-The CI workflow:
-1. Builds binaries for macOS ARM64 and Windows
-2. Creates a GitHub Release with artifacts
-3. **Automatically updates** `Formula/mitmproxy-controller.rb` in the tap repo:
+The release pipeline:
+1. `ci.yml` builds binaries for macOS ARM64 and Windows
+2. `ci.yml` creates a GitHub Release with artifacts
+3. `publish-packages.yml` **automatically updates** `Formula/mitmproxy-controller.rb` in the tap repo:
    - Updates `version` to match the tag
    - Updates `url` to point to new release artifact
    - Updates `sha256` checksum
+
+Note: Homebrew publishing runs only for stable tags (no `-beta` / `-rc` suffix).
 
 ---
 
@@ -178,6 +180,6 @@ brew untap jayshah123/tap
 
 | File | Location | Purpose |
 |------|----------|---------|
-| CI Workflow | `.github/workflows/ci.yml` | Triggers formula update on release |
+| Publish Workflow | `.github/workflows/publish-packages.yml` | Triggers formula update on release publish |
 | Formula | `jayshah123/homebrew-tap/Formula/mitmproxy-controller.rb` | Homebrew formula definition |
 | Token Secret | Repository Settings → Secrets | `HOMEBREW_TAP_TOKEN` for tap access |
