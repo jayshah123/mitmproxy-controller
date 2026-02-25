@@ -41,29 +41,42 @@ jobs:
   homebrew:
     name: Update Homebrew Formula
     needs: [resolve-tag]
-    if: secrets.HOMEBREW_TAP_TOKEN != '' && !contains(needs.resolve-tag.outputs.tag, '-')
+    if: ${{ !contains(needs.resolve-tag.outputs.tag, '-') }}
     runs-on: ubuntu-latest
+    env:
+      COMMITTER_TOKEN: ${{ secrets.HOMEBREW_TAP_TOKEN }}
     steps:
+      - name: Skip when token is missing
+        if: env.COMMITTER_TOKEN == ''
+        run: echo "HOMEBREW_TAP_TOKEN is not configured; skipping Homebrew publish."
+
       - name: Bump Homebrew formula
+        if: env.COMMITTER_TOKEN != ''
         uses: mislav/bump-homebrew-formula-action@v3
         with:
           formula-name: mitmproxy-controller
           homebrew-tap: jayshah123/homebrew-tap
           tag-name: ${{ needs.resolve-tag.outputs.tag }}
           download-url: https://github.com/${{ github.repository }}/releases/download/${{ needs.resolve-tag.outputs.tag }}/mitmproxy-controller_darwin_arm64.tar.gz
-        env:
-          COMMITTER_TOKEN: ${{ secrets.HOMEBREW_TAP_TOKEN }}
 
   winget:
     name: Update Winget Manifest
     needs: [resolve-tag]
-    if: secrets.WINGET_TOKEN != '' && !contains(needs.resolve-tag.outputs.tag, '-')
+    if: ${{ !contains(needs.resolve-tag.outputs.tag, '-') }}
     runs-on: windows-latest
+    env:
+      WINGET_TOKEN: ${{ secrets.WINGET_TOKEN }}
     steps:
+      - name: Skip when token is missing
+        if: env.WINGET_TOKEN == ''
+        shell: pwsh
+        run: Write-Host "WINGET_TOKEN is not configured; skipping Winget publish."
+
       - name: Submit Winget manifest update
+        if: env.WINGET_TOKEN != ''
         uses: vedantmgoyal9/winget-releaser@v2
         with:
           identifier: Jayshah123.MitmproxyController
           release-tag: ${{ needs.resolve-tag.outputs.tag }}
           installers-regex: mitmproxy-controller_windows_amd64\\.zip$
-          token: ${{ secrets.WINGET_TOKEN }}
+          token: ${{ env.WINGET_TOKEN }}
