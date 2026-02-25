@@ -22,7 +22,7 @@ The project uses GitHub Actions for automated builds, releases, and package mana
 | Pull request | Build all platforms, upload as workflow artifacts |
 | Push to `main` | `auto-version-tag.yml` may create next semver tag |
 | Push tag `v*` (e.g., `v0.1.0`) | Build all platforms + create GitHub Release with artifacts |
-| Release published | Publish package updates to Homebrew/Winget for stable tags (if secrets configured) |
+| Release published/released | Publish package updates to Homebrew/Winget for stable tags (if secrets configured) |
 
 ---
 
@@ -208,5 +208,5 @@ go build -trimpath -ldflags "-s -w -H=windowsgui" -o mitmproxy-controller.exe .
 - Verify `needs: [build]` ensures all builds finished first
 
 ### Homebrew or Winget job did not run
-- Ensure `publish-packages.yml` ran on the `release: published` event
+- Ensure `publish-packages.yml` ran on the `release` event (`published`/`released`)
 - Verify corresponding secret exists (`HOMEBREW_TAP_TOKEN` / `WINGET_TOKEN`)

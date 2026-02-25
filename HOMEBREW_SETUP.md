@@ -26,7 +26,7 @@ jayshah123/mitmproxy-controller     jayshah123/homebrew-tap
 │  Release artifacts          │     │  README.md              │
 └─────────────────────────────┘     └─────────────────────────┘
         │                                     ▲
-        │  On GitHub release publish           │
+        │  On GitHub release event             │
         └─────────────────────────────────────┘
               Auto-updates formula
 ```

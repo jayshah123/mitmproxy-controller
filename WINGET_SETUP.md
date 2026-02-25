@@ -192,7 +192,7 @@ name: publish-packages
 
 on:
   release:
-    types: [published]
+    types: [published, released]
 
 jobs:
   winget:
@@ -209,7 +209,7 @@ jobs:
           token: ${{ secrets.WINGET_TOKEN }}
 ```
 
-This job runs only when a release is published, skips automatically if `WINGET_TOKEN` is not configured, and ignores prerelease tags (`-beta`, `-rc`).
+This job runs only when a release event is emitted (`published` or `released`), skips automatically if `WINGET_TOKEN` is not configured, and ignores prerelease tags (`-beta`, `-rc`).
 
 ---
 
