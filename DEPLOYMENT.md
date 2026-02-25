@@ -179,6 +179,7 @@ For local enforcement before commit:
 ```
 
 Hook/lint scripts:
+- `.githooks/prepare-commit-msg`
 - `.githooks/commit-msg`
 - `scripts/lint-commit-msg.sh`
 

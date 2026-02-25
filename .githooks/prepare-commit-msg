@@ -1,0 +1,26 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+# Args:
+#   $1: path to commit message file
+#   $2: commit source (message|template|merge|squash|commit) or empty
+#   $3: commit SHA (when source=commit)
+msg_file="${1:-}"
+source_type="${2:-}"
+
+if [ -z "$msg_file" ] || [ ! -f "$msg_file" ]; then
+  exit 0
+fi
+
+# For standard interactive commits, source is empty and user hasn't edited yet.
+# Enforce only when message is pre-populated from a known source.
+case "$source_type" in
+  message|template|merge|squash|commit)
+    repo_root="$(git rev-parse --show-toplevel)"
+    "$repo_root/scripts/lint-commit-msg.sh" "$msg_file"
+    ;;
+  *)
+    exit 0
+    ;;
+esac

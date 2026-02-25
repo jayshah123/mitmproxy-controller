@@ -164,6 +164,10 @@ Conventional commits are enforced in CI and can be enforced locally before each 
 ./scripts/setup-git-hooks.sh
 ```
 
+Local enforcement uses:
+- `.githooks/prepare-commit-msg` for early checks when message is pre-populated (`-m`, merge, squash, template)
+- `.githooks/commit-msg` as final strict validation before commit is created
+
 Accepted examples:
 - `feat: add profile switcher`
 - `fix(proxy): handle empty network service`

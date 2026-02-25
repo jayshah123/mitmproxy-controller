@@ -5,8 +5,8 @@ set -euo pipefail
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$repo_root"
 
-chmod +x scripts/lint-commit-msg.sh scripts/setup-git-hooks.sh .githooks/commit-msg
+chmod +x scripts/lint-commit-msg.sh scripts/setup-git-hooks.sh .githooks/commit-msg .githooks/prepare-commit-msg
 git config core.hooksPath .githooks
 
 echo "Git hooks enabled via core.hooksPath=.githooks"
-echo "commit messages will now be linted locally before commit."
+echo "commit messages will now be linted locally (prepare-commit-msg + commit-msg)."
