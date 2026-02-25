@@ -118,6 +118,7 @@ Configure these in `Repository Settings → Secrets and variables → Actions`:
 
 | Secret | Required For | Notes |
 |--------|--------------|-------|
+| `RELEASE_TAG_TOKEN` | Auto version tagging | Classic PAT (`repo`, `workflow`) used to push tags that trigger release workflows |
 | `HOMEBREW_TAP_TOKEN` | Homebrew publishing | PAT with access to `jayshah123/homebrew-tap` |
 | `WINGET_TOKEN` | Winget publishing | GitHub token used by winget releaser to submit PRs |
 
@@ -143,6 +144,7 @@ Workflow: `.github/workflows/auto-version-tag.yml`
 - Runs on pushes to `main`
 - Uses conventional commits since the last `v*` tag
 - Creates and pushes one new annotated semver tag when needed
+- Uses `RELEASE_TAG_TOKEN` so pushed tags trigger `build-and-release`
 
 Auto bump rules:
 

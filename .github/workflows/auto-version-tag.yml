@@ -119,11 +119,19 @@ jobs:
       - name: Create and push tag
         if: steps.version.outputs.should_tag == 'true'
         shell: bash
+        env:
+          RELEASE_TAG_TOKEN: ${{ secrets.RELEASE_TAG_TOKEN }}
         run: |
           set -euo pipefail
           tag="${{ steps.version.outputs.next_tag }}"
+          if [ -z "$RELEASE_TAG_TOKEN" ]; then
+            echo "RELEASE_TAG_TOKEN is required to push tags that trigger downstream workflows." >&2
+            exit 1
+          fi
+
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git remote set-url origin "https://x-access-token:${RELEASE_TAG_TOKEN}@github.com/${{ github.repository }}.git"
           git tag -a "$tag" -m "Release $tag"
           git push origin "$tag"
 
