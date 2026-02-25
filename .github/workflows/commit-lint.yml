@@ -1,0 +1,66 @@
+name: commit-lint
+
+on:
+  push:
+    branches: ["**"]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  lint:
+    name: Lint Commit Messages
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Ensure lint script is executable
+        run: chmod +x scripts/lint-commit-msg.sh
+
+      - name: Validate commit messages
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            base="$(git rev-parse HEAD^1)"
+            head="$(git rev-parse HEAD^2)"
+            range="${base}..${head}"
+          else
+            before="${{ github.event.before }}"
+            after="${{ github.sha }}"
+            if [ "$before" = "0000000000000000000000000000000000000000" ]; then
+              range="$after"
+            else
+              range="${before}..${after}"
+            fi
+          fi
+
+          echo "Linting commits in range: $range"
+          mapfile -t commits < <(git rev-list --no-merges --reverse "$range")
+
+          if [ "${#commits[@]}" -eq 0 ]; then
+            echo "No non-merge commits to validate."
+            exit 0
+          fi
+
+          failed=0
+          for commit in "${commits[@]}"; do
+            subject="$(git show -s --format=%s "$commit")"
+            tmp_file="$(mktemp)"
+            printf '%s\n' "$subject" > "$tmp_file"
+
+            if ! scripts/lint-commit-msg.sh "$tmp_file"; then
+              echo "::error::Commit $commit failed conventional commit lint: $subject"
+              failed=1
+            fi
+            rm -f "$tmp_file"
+          done
+
+          if [ "$failed" -ne 0 ]; then
+            exit 1
+          fi

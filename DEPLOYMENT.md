@@ -11,6 +11,8 @@ The project uses GitHub Actions for automated builds, releases, and package mana
 **Workflow files:**
 - `.github/workflows/ci.yml` (build + GitHub Release artifacts)
 - `.github/workflows/publish-packages.yml` (Homebrew + Winget publishing)
+- `.github/workflows/auto-version-tag.yml` (automatic semver tagging from conventional commits)
+- `.github/workflows/commit-lint.yml` (enforces conventional commit messages)
 
 ---
 
@@ -19,7 +21,9 @@ The project uses GitHub Actions for automated builds, releases, and package mana
 | Trigger | What Happens |
 |---------|--------------|
 | Push to any branch | Build all platforms, upload as workflow artifacts |
+| Push to any branch | `commit-lint.yml` validates commit messages |
 | Pull request | Build all platforms, upload as workflow artifacts |
+| Pull request | `commit-lint.yml` validates commits in PR |
 | Push to `main` | `auto-version-tag.yml` may create next semver tag |
 | Push tag `v*` (e.g., `v0.1.0`) | Build all platforms + create GitHub Release with artifacts |
 | Release published/released | Publish package updates to Homebrew/Winget for stable tags (if secrets configured) |
@@ -157,6 +161,26 @@ Auto bump rules:
 | No matching commits | no tag |
 
 You can also run it manually from Actions with a forced bump (`patch`/`minor`/`major`).
+
+---
+
+## Conventional Commit Enforcement
+
+Workflow: `.github/workflows/commit-lint.yml`
+
+- Runs on push and pull request
+- Fails CI for non-conventional commit subjects
+- Allowed merge/revert auto-generated Git messages are exempted
+
+For local enforcement before commit:
+
+```bash
+./scripts/setup-git-hooks.sh
+```
+
+Hook/lint scripts:
+- `.githooks/commit-msg`
+- `scripts/lint-commit-msg.sh`
 
 ---
 

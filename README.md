@@ -155,6 +155,20 @@ GOOS=windows GOARCH=amd64 go build -o mitmproxy-controller.exe
 GOOS=darwin GOARCH=arm64 go build -o mitmproxy-controller
 ```
 
+## Commit Message Lint
+
+Conventional commits are enforced in CI and can be enforced locally before each commit.
+
+```bash
+# one-time setup for local commit-msg hook
+./scripts/setup-git-hooks.sh
+```
+
+Accepted examples:
+- `feat: add profile switcher`
+- `fix(proxy): handle empty network service`
+- `refactor(ui)!: simplify menu refresh path`
+
 ## License
 
 MIT
