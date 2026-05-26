@@ -23,11 +23,23 @@ var (
 	mEditConfig   *systray.MenuItem
 	mInstallCert  *systray.MenuItem
 	mRemoveCert   *systray.MenuItem
+	mSimulators   *systray.MenuItem
 )
 
 var (
 	profileItems      = map[string]*systray.MenuItem{}
 	profileSelectionC = make(chan string, 32)
+)
+
+var (
+	simulatorItems      = map[string]*systray.MenuItem{}
+	simulatorSelectionC = make(chan string, 32)
+	mNoSimulators       *systray.MenuItem
+)
+
+var (
+	transientStatus      string
+	transientStatusUntil time.Time
 )
 
 // Track cert state for click handler
@@ -79,6 +91,8 @@ func onReady() {
 
 	mInstallCert = systray.AddMenuItem("Install CA Certificate", "Install mitmproxy CA cert for HTTPS interception")
 	mRemoveCert = systray.AddMenuItem("Remove CA Certificate", "Remove mitmproxy CA cert from system")
+	mSimulators = systray.AddMenuItem("Booted Simulators", "Install and trust mitmproxy CA cert on a booted simulator")
+	syncBootedSimulatorSubmenu()
 
 	systray.AddSeparator()
 
@@ -194,6 +208,11 @@ func onReady() {
 				mStatus.SetTitle(removeCACertificate())
 				updateStatus()
 
+			case simulatorUDID := <-simulatorSelectionC:
+				disableAllActions()
+				setTransientStatus(installAndTrustCACertificateOnSimulator(simulatorUDID))
+				updateStatus()
+
 			case <-mRefresh.ClickedCh:
 				if err := loadProfilesFromDisk(); err != nil {
 					mStatus.SetTitle(fmt.Sprintf("Failed to refresh profiles: %v", err))
@@ -239,6 +258,99 @@ func syncProfileSubmenu() {
 			item.Hide()
 		}
 	}
+}
+
+func syncBootedSimulatorSubmenu() {
+	if mSimulators == nil {
+		return
+	}
+
+	simulators, err := listBootedSimulators()
+	if err != nil {
+		mSimulators.SetTitle("Booted Simulators: Unavailable")
+		mSimulators.Enable()
+		hideSimulatorItems()
+		if mNoSimulators == nil {
+			mNoSimulators = mSimulators.AddSubMenuItem("Unable to list simulators", err.Error())
+		} else {
+			mNoSimulators.SetTitle("Unable to list simulators")
+			mNoSimulators.SetTooltip(err.Error())
+			mNoSimulators.Show()
+		}
+		mNoSimulators.Disable()
+		return
+	}
+
+	mSimulators.SetTitle(fmt.Sprintf("Booted Simulators (%d)", len(simulators)))
+	mSimulators.Enable()
+
+	if len(simulators) == 0 {
+		hideSimulatorItems()
+		if mNoSimulators == nil {
+			mNoSimulators = mSimulators.AddSubMenuItem("No booted simulators", "Start an iOS simulator to install the CA certificate")
+		} else {
+			mNoSimulators.SetTitle("No booted simulators")
+			mNoSimulators.SetTooltip("Start an iOS simulator to install the CA certificate")
+			mNoSimulators.Show()
+		}
+		mNoSimulators.Disable()
+		return
+	}
+
+	if mNoSimulators != nil {
+		mNoSimulators.Hide()
+	}
+
+	visibleUDIDs := make(map[string]bool, len(simulators))
+	for _, simulator := range simulators {
+		s := simulator
+		visibleUDIDs[s.UDID] = true
+		title := fmt.Sprintf("Install & Trust CA: %s", s.DisplayName())
+		if isSimulatorCACertificateKnownInstalled(s.UDID) {
+			title = fmt.Sprintf("CA Certificate ✓ Installed: %s", s.DisplayName())
+		}
+		tooltip := fmt.Sprintf("Install mitmproxy CA certificate on simulator %s", s.UDID)
+
+		item, ok := simulatorItems[s.UDID]
+		if !ok {
+			item = mSimulators.AddSubMenuItem(title, tooltip)
+			simulatorItems[s.UDID] = item
+			wireSimulatorSelection(s.UDID, item)
+		} else {
+			item.SetTitle(title)
+			item.SetTooltip(tooltip)
+			item.Show()
+			item.Enable()
+		}
+	}
+
+	for udid, item := range simulatorItems {
+		if !visibleUDIDs[udid] {
+			item.Hide()
+		}
+	}
+}
+
+func hideSimulatorItems() {
+	for _, item := range simulatorItems {
+		item.Hide()
+	}
+}
+
+func wireSimulatorSelection(udid string, menuItem *systray.MenuItem) {
+	go func() {
+		for range menuItem.ClickedCh {
+			select {
+			case simulatorSelectionC <- udid:
+			default:
+			}
+		}
+	}()
+}
+
+func setTransientStatus(message string) {
+	transientStatus = message
+	transientStatusUntil = time.Now().Add(15 * time.Second)
 }
 
 func wireProfileSelection(id string, menuItem *systray.MenuItem) {
@@ -288,6 +400,9 @@ func disableAllActions() {
 	mStopMitm.Disable()
 	mEnableProxy.Disable()
 	mDisableProxy.Disable()
+	if mSimulators != nil {
+		mSimulators.Disable()
+	}
 }
 
 func updateStatus() {
@@ -320,8 +435,16 @@ func updateStatus() {
 	if len(loadWarnings) > 0 {
 		statusText = fmt.Sprintf("%s | Profile load warnings: %d", statusText, len(loadWarnings))
 	}
+	if transientStatus != "" {
+		if time.Now().Before(transientStatusUntil) {
+			statusText = transientStatus
+		} else {
+			transientStatus = ""
+		}
+	}
 	mStatus.SetTitle(statusText)
 	mProfiles.SetTitle(fmt.Sprintf("Service Profile: %s", profileName))
+	syncBootedSimulatorSubmenu()
 
 	// Enable/disable menu items based on current state
 	if mitmRunning {

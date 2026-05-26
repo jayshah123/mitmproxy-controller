@@ -19,6 +19,7 @@ A cross-platform **system tray** app for controlling [mitmproxy](https://mitmpro
 - **Open mitmproxy Home Folder** - Open `~/.mitmproxy` (creates it if missing)
 - **Edit mitmproxy Config** - Open `~/.mitmproxy/config.yaml` (creates it if missing)
 - **Install CA Certificate** - One-click installation of mitmproxy CA cert for HTTPS interception
+- **Install CA Certificate on Booted Simulators** - Lists booted iOS simulators and installs/trusts the mitmproxy CA cert with `simctl`
 - **Smart Menu Items** - Actions are disabled when not applicable (e.g., can't start if already running)
 - **Auto-Refresh** - Status updates every 5 seconds via background polling
 - **Manual Refresh** - "Refresh Status" menu item for immediate update
@@ -88,6 +89,8 @@ mitmproxy-controller/
 ├── proxy_windows.go     # Windows proxy config (registry)
 ├── cert_darwin.go       # macOS CA certificate installation (Keychain)
 ├── cert_windows.go      # Windows CA certificate installation (certutil)
+├── simulator_darwin.go  # macOS booted simulator CA certificate installation
+├── simulator_windows.go # Windows no-op simulator compatibility stubs
 ├── open_darwin.go       # macOS URL/file opening utilities
 ├── open_windows.go      # Windows URL/file opening utilities
 ├── go.mod               # Go module definition
@@ -129,6 +132,18 @@ For HTTPS interception, mitmproxy's CA certificate must be trusted by your syste
 Click **"Remove CA Certificate"** to uninstall from system trust store.
 - **macOS**: Removes trust settings and deletes from System Keychain
 - **Windows**: Deletes from Root store using SHA1 thumbprint
+
+### Booted iOS Simulators
+
+On macOS, the menu includes **"Booted Simulators"** when Xcode simulators are available. Expand it to see each booted simulator, then select one to install and trust the mitmproxy CA certificate in that simulator's root store.
+
+The simulator install flow uses:
+
+```bash
+xcrun simctl keychain <simulator-udid> add-root-cert ~/.mitmproxy/mitmproxy-ca-cert.pem
+```
+
+After installation, the status row reports success and the simulator item changes to **"CA Certificate ✓ Installed"** for the current app session. Selecting it again reports that the certificate is already installed.
 
 ### Menu States
 
