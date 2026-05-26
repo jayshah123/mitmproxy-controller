@@ -35,7 +35,7 @@ A cross-platform **system tray** app for controlling [mitmproxy](https://mitmpro
 - [Go 1.23+](https://go.dev/dl/)
 - [mitmproxy](https://mitmproxy.org/) installed and available in PATH
 
-## Installation
+## Install mitmproxy (Dependency)
 
 ```bash
 # macOS
@@ -43,6 +43,22 @@ brew install mitmproxy
 
 # Windows (using winget)
 winget install -e --id mitmproxy.mitmproxy
+```
+
+## Install This App via Homebrew (macOS)
+
+```bash
+# one-time: add tap
+brew tap jayshah123/tap
+
+# install latest published version
+brew install jayshah123/tap/mitmproxy-controller
+
+# run
+mitmproxy-controller
+
+# upgrade later
+brew upgrade jayshah123/tap/mitmproxy-controller
 ```
 
 ## Build
