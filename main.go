@@ -24,6 +24,7 @@ var (
 	mInstallCert  *systray.MenuItem
 	mRemoveCert   *systray.MenuItem
 	mSimulators   *systray.MenuItem
+	mEmulators    *systray.MenuItem
 )
 
 var (
@@ -35,6 +36,25 @@ var (
 	simulatorItems      = map[string]*systray.MenuItem{}
 	simulatorSelectionC = make(chan string, 32)
 	mNoSimulators       *systray.MenuItem
+)
+
+type emulatorMenu struct {
+	root         *systray.MenuItem
+	installCert  *systray.MenuItem
+	enableProxy  *systray.MenuItem
+	disableProxy *systray.MenuItem
+	reboot       *systray.MenuItem
+}
+
+type emulatorAction struct {
+	Serial string
+	Kind   string // "install_cert", "enable_proxy", "disable_proxy"
+}
+
+var (
+	emulatorItems      = map[string]*emulatorMenu{}
+	emulatorActionC    = make(chan emulatorAction, 32)
+	mNoEmulators       *systray.MenuItem
 )
 
 var (
@@ -93,6 +113,8 @@ func onReady() {
 	mRemoveCert = systray.AddMenuItem("Remove CA Certificate", "Remove mitmproxy CA cert from system")
 	mSimulators = systray.AddMenuItem("Booted Simulators", "Install and trust mitmproxy CA cert on a booted simulator")
 	syncBootedSimulatorSubmenu()
+	mEmulators = systray.AddMenuItem("Booted Emulators", "Install CA cert and toggle proxy on a booted Android emulator")
+	syncBootedEmulatorSubmenu()
 
 	systray.AddSeparator()
 
@@ -211,6 +233,24 @@ func onReady() {
 			case simulatorUDID := <-simulatorSelectionC:
 				disableAllActions()
 				setTransientStatus(installAndTrustCACertificateOnSimulator(simulatorUDID))
+				updateStatus()
+
+			case action := <-emulatorActionC:
+				disableAllActions()
+				var msg string
+				switch action.Kind {
+				case "install_cert":
+					msg = installAndTrustCACertificateOnEmulator(action.Serial)
+				case "enable_proxy":
+					msg = enableEmulatorProxy(action.Serial)
+				case "disable_proxy":
+					msg = disableEmulatorProxy(action.Serial)
+				case "reboot":
+					msg = rebootEmulator(action.Serial)
+				default:
+					msg = fmt.Sprintf("Unknown emulator action: %s", action.Kind)
+				}
+				setTransientStatus(msg)
 				updateStatus()
 
 			case <-mRefresh.ClickedCh:
@@ -348,6 +388,123 @@ func wireSimulatorSelection(udid string, menuItem *systray.MenuItem) {
 	}()
 }
 
+func syncBootedEmulatorSubmenu() {
+	if mEmulators == nil {
+		return
+	}
+
+	emulators, err := listBootedEmulators()
+	if err != nil {
+		mEmulators.SetTitle("Booted Emulators: Unavailable")
+		mEmulators.Enable()
+		hideEmulatorItems()
+		if mNoEmulators == nil {
+			mNoEmulators = mEmulators.AddSubMenuItem("Unable to list emulators", err.Error())
+		} else {
+			mNoEmulators.SetTitle("Unable to list emulators")
+			mNoEmulators.SetTooltip(err.Error())
+			mNoEmulators.Show()
+		}
+		mNoEmulators.Disable()
+		return
+	}
+
+	mEmulators.SetTitle(fmt.Sprintf("Booted Emulators (%d)", len(emulators)))
+	mEmulators.Enable()
+
+	if len(emulators) == 0 {
+		hideEmulatorItems()
+		msg := "No booted Android emulators"
+		tip := "Start an Android emulator (with -writable-system for cert install) to enable these actions"
+		if adbPath() == "" {
+			msg = "adb not found"
+			tip = "Install Android platform-tools or set ANDROID_HOME"
+		}
+		if mNoEmulators == nil {
+			mNoEmulators = mEmulators.AddSubMenuItem(msg, tip)
+		} else {
+			mNoEmulators.SetTitle(msg)
+			mNoEmulators.SetTooltip(tip)
+			mNoEmulators.Show()
+		}
+		mNoEmulators.Disable()
+		return
+	}
+
+	if mNoEmulators != nil {
+		mNoEmulators.Hide()
+	}
+
+	visibleSerials := make(map[string]bool, len(emulators))
+	for _, emulator := range emulators {
+		e := emulator
+		visibleSerials[e.Serial] = true
+
+		menu, ok := emulatorItems[e.Serial]
+		if !ok {
+			menu = &emulatorMenu{
+				root: mEmulators.AddSubMenuItem(e.DisplayName(), fmt.Sprintf("Actions for emulator %s", e.Serial)),
+			}
+			menu.installCert = menu.root.AddSubMenuItem("Install & Trust CA Certificate", "Install mitmproxy CA cert into the emulator's system trust store")
+			menu.enableProxy = menu.root.AddSubMenuItem("Enable Emulator Proxy", "Point this emulator's HTTP proxy at the host mitmproxy")
+			menu.disableProxy = menu.root.AddSubMenuItem("Disable Emulator Proxy", "Clear this emulator's HTTP proxy setting")
+			menu.reboot = menu.root.AddSubMenuItem("Reboot Emulator", "Soft-reboot this emulator via adb reboot")
+			emulatorItems[e.Serial] = menu
+			wireEmulatorAction(e.Serial, "install_cert", menu.installCert)
+			wireEmulatorAction(e.Serial, "enable_proxy", menu.enableProxy)
+			wireEmulatorAction(e.Serial, "disable_proxy", menu.disableProxy)
+			wireEmulatorAction(e.Serial, "reboot", menu.reboot)
+		} else {
+			menu.root.SetTitle(e.DisplayName())
+			menu.root.Show()
+		}
+
+		if isEmulatorCACertificateKnownInstalled(e.Serial) {
+			menu.installCert.SetTitle("CA Certificate ✓ Installed")
+		} else {
+			menu.installCert.SetTitle("Install & Trust CA Certificate")
+		}
+
+		proxyOn := isEmulatorProxyEnabled(e.Serial)
+		if proxyOn {
+			menu.enableProxy.SetTitle("Proxy ✓ Enabled")
+			menu.enableProxy.Disable()
+			menu.disableProxy.SetTitle("Disable Emulator Proxy")
+			menu.disableProxy.Enable()
+		} else {
+			menu.enableProxy.SetTitle("Enable Emulator Proxy")
+			menu.enableProxy.Enable()
+			menu.disableProxy.SetTitle("Disable Emulator Proxy")
+			menu.disableProxy.Disable()
+		}
+		menu.installCert.Enable()
+		menu.reboot.Enable()
+	}
+
+	for serial, menu := range emulatorItems {
+		if !visibleSerials[serial] {
+			menu.root.Hide()
+		}
+	}
+}
+
+func hideEmulatorItems() {
+	for _, menu := range emulatorItems {
+		menu.root.Hide()
+	}
+}
+
+func wireEmulatorAction(serial, kind string, menuItem *systray.MenuItem) {
+	go func() {
+		for range menuItem.ClickedCh {
+			select {
+			case emulatorActionC <- emulatorAction{Serial: serial, Kind: kind}:
+			default:
+			}
+		}
+	}()
+}
+
 func setTransientStatus(message string) {
 	transientStatus = message
 	transientStatusUntil = time.Now().Add(15 * time.Second)
@@ -403,6 +560,9 @@ func disableAllActions() {
 	if mSimulators != nil {
 		mSimulators.Disable()
 	}
+	if mEmulators != nil {
+		mEmulators.Disable()
+	}
 }
 
 func updateStatus() {
@@ -445,6 +605,7 @@ func updateStatus() {
 	mStatus.SetTitle(statusText)
 	mProfiles.SetTitle(fmt.Sprintf("Service Profile: %s", profileName))
 	syncBootedSimulatorSubmenu()
+	syncBootedEmulatorSubmenu()
 
 	// Enable/disable menu items based on current state
 	if mitmRunning {

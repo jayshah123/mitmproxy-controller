@@ -20,6 +20,7 @@ A cross-platform **system tray** app for controlling [mitmproxy](https://mitmpro
 - **Edit mitmproxy Config** - Open `~/.mitmproxy/config.yaml` (creates it if missing)
 - **Install CA Certificate** - One-click installation of mitmproxy CA cert for HTTPS interception
 - **Install CA Certificate on Booted Simulators** - Lists booted iOS simulators and installs/trusts the mitmproxy CA cert with `simctl`
+- **Booted Android Emulators** - Lists booted Android emulators (via `adb`); per-emulator submenu to install & trust the CA cert into the system trust store, toggle the emulator's HTTP proxy at the host mitmproxy, and reboot the emulator
 - **Smart Menu Items** - Actions are disabled when not applicable (e.g., can't start if already running)
 - **Auto-Refresh** - Status updates every 5 seconds via background polling
 - **Manual Refresh** - "Refresh Status" menu item for immediate update
@@ -34,6 +35,7 @@ A cross-platform **system tray** app for controlling [mitmproxy](https://mitmpro
 - **macOS** or **Windows**
 - [Go 1.23+](https://go.dev/dl/)
 - [mitmproxy](https://mitmproxy.org/) installed and available in PATH
+- *(Optional)* Android **platform-tools** on `PATH` (or `ANDROID_HOME` / `ANDROID_SDK_ROOT` set) — required only for the Booted Emulators features
 
 ## Install mitmproxy (Dependency)
 
@@ -66,6 +68,14 @@ brew upgrade jayshah123/tap/mitmproxy-controller
 ```bash
 go build -o mitmproxy-controller
 ```
+
+## Test
+
+```bash
+go test ./...
+```
+
+Unit tests cover pure-logic helpers (subject-hash derivation, display name formatting). Platform-specific shell-outs (`networksetup`, `security`, `certutil`, `simctl`, `adb`, `osascript`) are exercised manually.
 
 ## Run
 
@@ -107,6 +117,8 @@ mitmproxy-controller/
 ├── cert_windows.go      # Windows CA certificate installation (certutil)
 ├── simulator_darwin.go  # macOS booted simulator CA certificate installation
 ├── simulator_windows.go # Windows no-op simulator compatibility stubs
+├── emulator.go          # Cross-platform Android emulator support (adb lookup, cert install, proxy toggle, reboot)
+├── emulator_test.go     # Unit tests for subject_hash_old and display formatting
 ├── open_darwin.go       # macOS URL/file opening utilities
 ├── open_windows.go      # Windows URL/file opening utilities
 ├── go.mod               # Go module definition
@@ -160,6 +172,43 @@ xcrun simctl keychain <simulator-udid> add-root-cert ~/.mitmproxy/mitmproxy-ca-c
 ```
 
 After installation, the status row reports success and the simulator item changes to **"CA Certificate ✓ Installed"** for the current app session. Selecting it again reports that the certificate is already installed.
+
+### Booted Android Emulators
+
+When `adb` is available on `PATH` (or `ANDROID_HOME` / `ANDROID_SDK_ROOT` is set), the menu shows **"Booted Emulators (N)"** with a submenu per detected emulator. Each emulator's submenu has four actions:
+
+| Action | What it does |
+|--------|--------------|
+| **Install & Trust CA Certificate** | Pushes `~/.mitmproxy/mitmproxy-ca-cert.pem` to `/system/etc/security/cacerts/<hash>.0` with mode 0644 and the right SELinux context, so it appears under Settings → Trusted credentials → **SYSTEM** as a system-trusted root |
+| **Enable Emulator Proxy** | Runs `adb shell settings put global http_proxy 10.0.2.2:8899` — the emulator's special host-loopback alias points at your machine's mitmproxy |
+| **Disable Emulator Proxy** | Clears the global proxy (`http_proxy :0`) |
+| **Reboot Emulator** | `adb reboot` — useful after a fresh cert install if running apps still pin to the old trust set |
+
+The cert filename is derived in pure Go using OpenSSL's legacy `subject_hash_old` algorithm (MD5 of DER-encoded subject, first 4 bytes little-endian, hex-formatted), matching Android's lookup path exactly — no `openssl` binary required.
+
+#### Requirements for cert install
+
+The emulator AVD must:
+
+1. Be a **non-Google-Play** image (`google_apis`, AOSP, etc.) so `adb root` is permitted. Play Store images are locked.
+2. Be started with `-writable-system` so `adb remount` can create a writable overlay on `/system`.
+
+Recommended first-launch command for a clean rooted, writable AVD:
+
+```bash
+emulator -avd <YourAVD> -writable-system -no-snapshot-load -wipe-data
+```
+
+`-wipe-data` is only needed on first launch with `-writable-system` (subsequent launches with `-writable-system -no-snapshot-load` re-use the overlay cleanly). Without `-wipe-data` on first launch, zygote can get stuck in a restart loop because existing userdata expects the verified read-only system image.
+
+#### Status messages
+
+| State | Message |
+|-------|---------|
+| `adb` not found | "adb not found in PATH or Android SDK install locations" |
+| AVD started without `-writable-system` | "adb remount failed: … Emulator must be started with `-writable-system` and not be a Google Play image." |
+| Cert installed in this session | Submenu label becomes "CA Certificate ✓ Installed" until the app restarts |
+| Proxy enabled | "Enable Emulator Proxy" → "Proxy ✓ Enabled" and the disable action becomes available |
 
 ### Menu States
 

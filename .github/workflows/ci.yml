@@ -34,6 +34,10 @@ jobs:
           go-version-file: go.mod
           cache: true
 
+      - name: Test
+        shell: bash
+        run: go test ./...
+
       - name: Build
         shell: bash
         env:

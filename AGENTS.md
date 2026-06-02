@@ -21,6 +21,10 @@ Cross-platform system tray app for controlling mitmproxy and system proxy settin
 ├── proxy_windows.go    # Windows proxy config (registry + WinINet)
 ├── cert_darwin.go      # macOS CA cert install (Keychain + security CLI)
 ├── cert_windows.go     # Windows CA cert install (certutil)
+├── simulator_darwin.go # macOS booted iOS simulator CA install (simctl keychain)
+├── simulator_windows.go # No-op simulator stubs on Windows
+├── emulator.go         # Cross-platform Android emulator support (adb-based)
+├── emulator_test.go    # Unit tests for subject_hash_old and DisplayName
 ├── open_darwin.go      # macOS URL/file opening (open command)
 ├── open_windows.go     # Windows URL/file opening (rundll32/explorer)
 ├── go.mod              # Go module definition
@@ -36,6 +40,9 @@ go build -o mitmproxy-controller
 
 # Run
 ./mitmproxy-controller
+
+# Test
+go test ./...
 
 # Tidy dependencies
 go mod tidy
@@ -68,6 +75,16 @@ go mod tidy
 - `open_darwin.go` / `open_windows.go` - Platform utilities:
   - `openURL()` - Open URL in default browser
   - `revealInFileManager()` - Open folder in Finder/Explorer
+
+- `emulator.go` - Cross-platform Android emulator support (runs on macOS and Windows; `adb` does the cross-platform work):
+  - `listBootedEmulators()` - Returns emulator serials/AVDs by parsing `adb devices -l` + `adb -s <serial> emu avd name`
+  - `installAndTrustCACertificateOnEmulator(serial)` - `adb root` → `remount` → push cert to `/system/etc/security/cacerts/<hash>.0` → `chmod 644`
+  - `enableEmulatorProxy(serial)` / `disableEmulatorProxy(serial)` - `adb shell settings put global http_proxy 10.0.2.2:<port>` and `:0` to clear
+  - `isEmulatorProxyEnabled(serial)` - Polls `settings get global http_proxy` for live menu state
+  - `rebootEmulator(serial)` - `adb -s <serial> reboot`; also clears the in-session "cert installed" cache for that serial
+  - `subjectHashOld(certPEM)` - Pure-Go reimplementation of OpenSSL's `-subject_hash_old` (MD5 of DER subject, first 4 bytes LE, hex) — matches Android's cacerts filename convention. Tested in `emulator_test.go`.
+  - `adbPath()` - Finds `adb` from PATH or `ANDROID_HOME`/`ANDROID_SDK_ROOT` or standard SDK install paths
+  - Constant: `androidEmulatorHostAlias` = `10.0.2.2` (special emulator → host loopback alias)
 
 - `proxy_darwin.go` - macOS proxy:
   - `enableSystemProxy()` / `disableSystemProxy()` - via networksetup
